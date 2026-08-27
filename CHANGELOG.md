@@ -17,11 +17,20 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 - Authenticated mute-state synchronization with Paper/Folia chat enforcement.
 - SQLite, MySQL/MariaDB, and PostgreSQL migrations on a dedicated dispatcher.
 - Automated tests, artifact inspection, CI, release automation, CodeQL, and dependency review.
+- Shared Adventure UI, permission-aware action buttons, and reusable configurable pagination.
+- Persistent offline-player identity resolution with bounded name suggestions.
+- Player-or-ID unban/unmute, full punishment details, and expiring self-punishment confirmation.
+- Paginated report filters/details and clickable staff actions.
+- Correlated staff-chat and network-alert delivery acknowledgements.
+- Canonical capability permissions with documented, warning-once legacy aliases.
 
 ### Fixed
 
 - Explicitly load packaged JDBC drivers so SQLite, MySQL, and PostgreSQL work with Velocity's isolated plugin classloader.
 - Commit the Gradle wrapper JAR and update GitHub Actions to Node 24-compatible releases.
+- Preserve YAML comments and formatting by avoiding normal-startup rewrites; migrations now create backups.
+- Remove ignored configuration fields and the obsolete `maintenance.yml` resource.
+- Remove an undocumented extra per-destination permission check from configured move commands.
 
 ### Known limitations
 

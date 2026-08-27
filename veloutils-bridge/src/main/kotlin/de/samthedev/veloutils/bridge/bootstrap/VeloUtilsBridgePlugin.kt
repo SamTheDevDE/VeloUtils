@@ -8,6 +8,9 @@ import de.samthedev.veloutils.bridge.server.PlatformSchedulers
 import de.samthedev.veloutils.protocol.ProtocolCodec
 import de.samthedev.veloutils.protocol.ProtocolSecurity
 import de.samthedev.veloutils.common.RemoteCommandPolicy
+import de.samthedev.veloutils.common.Permissions
+import de.samthedev.veloutils.common.DurationParser
+import de.samthedev.veloutils.common.PermissionDefinition
 import de.samthedev.veloutils.bridge.player.MuteEnforcement
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
@@ -20,10 +23,30 @@ public class VeloUtilsBridgePlugin : JavaPlugin(), Listener {
     private lateinit var gateway: BridgeProtocolGateway
     private lateinit var schedulers: PlatformSchedulers
     private val placeholders = NetworkPlaceholderCache()
+    private var legacyPermissionsEnabled: Boolean = true
+    private var warnOnLegacyPermissions: Boolean = true
+    private val warnedLegacyPermissions = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     override fun onEnable() {
         saveDefaultConfigFile()
         val root = YamlConfigurationLoader.builder().path(dataPath.resolve("config.yml")).build().load()
+        if (root.node("config-version").getInt(1) != 1) {
+            logger.severe("Unsupported VeloUtils Bridge config-version. Disabling bridge.")
+            server.pluginManager.disablePlugin(this)
+            return
+        }
+        val heartbeat = runCatching { DurationParser.parse(root.node("heartbeat").getString("10s")) }.getOrElse {
+            logger.severe("Invalid bridge heartbeat duration: ${it.message}. Disabling bridge.")
+            server.pluginManager.disablePlugin(this)
+            return
+        }
+        if (heartbeat.seconds !in 5..60) {
+            logger.severe("Bridge heartbeat must be between 5s and 60s. Disabling bridge.")
+            server.pluginManager.disablePlugin(this)
+            return
+        }
+        legacyPermissionsEnabled = root.node("compatibility", "legacy-permissions", "enabled").getBoolean(true)
+        warnOnLegacyPermissions = root.node("compatibility", "legacy-permissions", "warn").getBoolean(true)
         val authenticationRequired = root.node("protocol", "authentication", "required").getBoolean(false)
         val secret = root.node("protocol", "authentication", "shared-secret").getString("").trim().takeIf(String::isNotEmpty)
         if (authenticationRequired && (secret?.toByteArray()?.size ?: 0) < 32) {
@@ -35,8 +58,14 @@ public class VeloUtilsBridgePlugin : JavaPlugin(), Listener {
         val remoteCommandsEnabled = root.node("protocol", "remote-commands", "enabled").getBoolean(false)
         val remoteCommandAllowlist = root.node("protocol", "remote-commands", "allowlist")
             .getList(String::class.java, emptyList()).toSet()
-        if (remoteCommandsEnabled && !authenticationRequired) {
-            logger.severe("Remote commands require authenticated protocol mode. Disabling bridge.")
+        if (remoteCommandsEnabled && (!authenticationRequired || remoteCommandAllowlist.isEmpty())) {
+            logger.severe("Remote commands require authenticated protocol mode and a non-empty allowlist. Disabling bridge.")
+            server.pluginManager.disablePlugin(this)
+            return
+        }
+        val maximumPayloadBytes = root.node("protocol", "maximum-payload-bytes").getInt(32 * 1_024)
+        if (maximumPayloadBytes !in 1_024..1_048_576) {
+            logger.severe("Bridge maximum-payload-bytes must be between 1024 and 1048576. Disabling bridge.")
             server.pluginManager.disablePlugin(this)
             return
         }
@@ -44,13 +73,13 @@ public class VeloUtilsBridgePlugin : JavaPlugin(), Listener {
         schedulers = PlatformSchedulers(this)
         val muteEnforcement = MuteEnforcement(
             schedulers,
-            root.node("moderation", "mute-message").getString("<red>You are muted.</red> <gray><reason>"),
+            root.node("moderation", "mute-message").getString("<red>You are muted.</red> <gray><reason></gray>"),
         )
         gateway = BridgeProtocolGateway(
             this,
             ProtocolCodec(
                 ProtocolSecurity(secret?.toByteArray(), authenticationRequired),
-                maximumPayloadBytes = root.node("protocol", "maximum-payload-bytes").getInt(32 * 1_024),
+                maximumPayloadBytes = maximumPayloadBytes,
             ),
             schedulers.isFolia,
             schedulers,
@@ -65,7 +94,7 @@ public class VeloUtilsBridgePlugin : JavaPlugin(), Listener {
         server.pluginManager.registerEvents(muteEnforcement, this)
         registerCommands()
         registerPlaceholders()
-        schedulers.repeatGlobal(20L, 200L) { sendHeartbeat() }
+        schedulers.repeatGlobal(20L, heartbeat.seconds * 20L) { sendHeartbeat() }
         logger.info("VeloUtils Bridge enabled on ${if (schedulers.isFolia) "Folia" else "Paper"} ${server.minecraftVersion}.")
     }
 
@@ -85,24 +114,46 @@ public class VeloUtilsBridgePlugin : JavaPlugin(), Listener {
 
     private fun registerCommands() {
         getCommand("vualert")?.setExecutor { sender, _, _, arguments ->
-            if (!sender.hasPermission("veloutils.bridge.alert")) return@setExecutor false
+            if (!hasPermission(sender, Permissions.ALERT_BROADCAST)) {
+                sender.sendMessage("You do not have permission to broadcast network alerts.")
+                return@setExecutor true
+            }
             val carrier = (sender as? Player) ?: server.onlinePlayers.firstOrNull()
             if (carrier == null) {
                 sender.sendMessage("No connected player is available as a secure plugin-message carrier.")
                 return@setExecutor true
             }
-            runCatching { gateway.alert(carrier, arguments.joinToString(" ")) }
-                .onFailure { sender.sendMessage(it.message ?: "Invalid alert") }
+            runCatching { gateway.alert(sender, carrier, arguments.joinToString(" ")) }
+                .onFailure { sender.sendMessage("Alert rejected: ${it.message ?: "invalid message"}") }
             true
         }
         mapOf("sc" to "staff", "ac" to "admin").forEach { (command, channel) ->
             getCommand(command)?.setExecutor { sender, _, _, arguments ->
-                val player = sender as? Player ?: return@setExecutor false
+                val permission = if (channel == "staff") Permissions.CHAT_STAFF_USE else Permissions.CHAT_ADMIN_USE
+                if (!hasPermission(sender, permission)) {
+                    sender.sendMessage("You do not have permission to use ${channel.replaceFirstChar(Char::uppercase)} Chat.")
+                    return@setExecutor true
+                }
+                val player = sender as? Player
+                if (player == null) {
+                    sender.sendMessage("${channel.replaceFirstChar(Char::uppercase)} Chat requires a player sender; use /vualert for console broadcasts.")
+                    return@setExecutor true
+                }
                 runCatching { gateway.chat(player, channel, arguments.joinToString(" ")) }
-                    .onFailure { player.sendMessage(it.message ?: "Invalid message") }
+                    .onFailure { player.sendMessage("Message rejected: ${it.message ?: "invalid message"}") }
                 true
             }
         }
+    }
+
+    private fun hasPermission(sender: org.bukkit.command.CommandSender, permission: PermissionDefinition): Boolean {
+        if (sender.hasPermission(permission.node)) return true
+        if (!legacyPermissionsEnabled) return false
+        val alias = permission.legacyAliases.firstOrNull(sender::hasPermission) ?: return false
+        if (warnOnLegacyPermissions && warnedLegacyPermissions.add(alias)) {
+            logger.warning("Legacy permission '$alias' is in use; migrate to '${permission.node}'.")
+        }
+        return true
     }
 
     private fun registerPlaceholders() {

@@ -1,32 +1,24 @@
 config-version: 1
 move-commands:
   lobby:
-    aliases: [hub]
-    servers: [lobby, limbo]
+    aliases:
+      - hub
+    servers:
+      - lobby
+      - limbo
     permission: veloutils.command.lobby
-    fallback: true
     cooldown: 3s
   survival:
-    aliases: []
-    servers: [survival]
+    servers:
+      - survival
     permission: veloutils.command.survival
-    fallback: false
     cooldown: 3s
 
 message-commands:
   discord:
-    aliases: [dc]
+    aliases:
+      - dc
     permission: veloutils.message.discord
     cooldown: 5s
     messages:
-      - "<gray>Discord: <click:open_url:'https://example.com'><aqua>Click here</aqua></click>"
-
-permissions:
-  find: veloutils.command.find
-  goto: veloutils.command.goto
-  list: veloutils.command.list
-  network: veloutils.command.network
-  serverinfo: veloutils.command.serverinfo
-  send: veloutils.command.send
-  sendall: veloutils.command.sendall
-
+      - "<gray>Discord: </gray><click:open_url:'https://example.com'><aqua>Click here</aqua></click>"

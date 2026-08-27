@@ -1,7 +1,4 @@
 config-version: 1
-luckperms:
-  enabled: true
-  cache-seconds: 30
 discord:
   connect-timeout: 5s
   request-timeout: 10s
@@ -13,9 +10,6 @@ discord:
     maintenance: ""
     staff-activity: ""
     alerts: ""
-tebex:
-  secret: ""
-  cache-minutes: 30
 limbo:
   enabled: false
   server: limbo

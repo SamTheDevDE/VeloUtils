@@ -7,6 +7,7 @@ import de.samthedev.veloutils.api.ConnectionOutcome
 import de.samthedev.veloutils.common.BoundedExpiringMap
 import de.samthedev.veloutils.common.DurationParser
 import de.samthedev.veloutils.proxy.network.VelocityNetworkService
+import de.samthedev.veloutils.proxy.ui.ChatUi
 import de.samthedev.veloutils.proxy.util.ConfiguredMessages
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -99,7 +100,7 @@ public class ConfiguredMoveCommand(
             return
         }
         if (cooldowns[player.uniqueId] != null) {
-            player.sendMessage(Component.text("Please wait before connecting again."))
+            player.sendMessage(ChatUi.warning("Please wait before connecting again."))
             return
         }
         cooldowns.put(player.uniqueId, Unit)
@@ -128,7 +129,7 @@ public class ConfiguredMessageCommand(
         }
         val player = invocation.source() as? Player
         if (player != null && cooldowns[player.uniqueId] != null) {
-            player.sendMessage(Component.text("Please wait before using this command again."))
+            player.sendMessage(ChatUi.warning("Please wait before using this command again."))
             return
         }
         player?.let { cooldowns.put(it.uniqueId, Unit) }

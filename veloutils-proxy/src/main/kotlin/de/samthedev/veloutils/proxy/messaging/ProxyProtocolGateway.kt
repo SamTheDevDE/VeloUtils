@@ -20,6 +20,9 @@ import de.samthedev.veloutils.protocol.ProtocolVersion
 import de.samthedev.veloutils.protocol.CommandRequestPayload
 import de.samthedev.veloutils.protocol.CommandResponsePayload
 import de.samthedev.veloutils.protocol.ChatPayload
+import de.samthedev.veloutils.protocol.AlertPayload
+import de.samthedev.veloutils.protocol.DeliveryResponsePayload
+import de.samthedev.veloutils.protocol.DeliveryStatus
 import de.samthedev.veloutils.protocol.PlaceholderPayload
 import de.samthedev.veloutils.protocol.MuteStatePayload
 import de.samthedev.veloutils.protocol.RequestTracker
@@ -43,6 +46,11 @@ import net.kyori.adventure.text.Component
 import de.samthedev.veloutils.api.Punishment
 import de.samthedev.veloutils.proxy.integration.NetworkEventKind
 import de.samthedev.veloutils.proxy.integration.NetworkEventSink
+import de.samthedev.veloutils.common.Permissions
+import de.samthedev.veloutils.proxy.permission.PermissionService
+import net.kyori.adventure.text.event.ClickEvent
+import net.kyori.adventure.text.event.HoverEvent
+import net.kyori.adventure.text.format.NamedTextColor
 
 public class ProxyProtocolGateway(
     private val codec: ProtocolCodec,
@@ -54,6 +62,8 @@ public class ProxyProtocolGateway(
     private val messages: ConfiguredMessages,
     private val staffChatEnabled: Boolean,
     private val eventSink: NetworkEventSink,
+    private val permissions: PermissionService,
+    private val authenticatedMode: Boolean,
 ) : AutoCloseable {
     public companion object {
         public val CHANNEL: MinecraftChannelIdentifier = MinecraftChannelIdentifier.create("veloutils", "main")
@@ -161,45 +171,117 @@ public class ProxyProtocolGateway(
     }
 
     private fun handleStaffChat(source: ServerConnection, result: DecodeResult.Accepted) {
-        if (!staffChatEnabled) return
-        val payload = runCatching { json.decodeFromJsonElement<ChatPayload>(result.envelope.payload) }.getOrNull() ?: return
+        if (!staffChatEnabled) {
+            respond(source, PacketType.CHAT_RESPONSE, result.envelope.requestId, DeliveryStatus.MODULE_DISABLED, "Staff chat is disabled on the proxy.")
+            return
+        }
+        val payload = runCatching { json.decodeFromJsonElement<ChatPayload>(result.envelope.payload) }.getOrNull()
+        if (payload == null) {
+            respond(source, PacketType.CHAT_RESPONSE, result.envelope.requestId, DeliveryStatus.INVALID_MESSAGE, "The chat request was malformed.")
+            return
+        }
         val player = source.player
         val channel = payload.channel.lowercase()
-        if (payload.playerId != player.uniqueId.toString() || payload.playerName != player.username) return
-        if (!Regex("[a-z0-9_-]{1,32}").matches(channel) || !player.hasPermission("veloutils.chat.$channel")) return
-        val message = runCatching { InputPolicies.CHAT.validate(payload.message) }.getOrNull() ?: return
+        if (payload.playerId != player.uniqueId.toString() || payload.playerName != player.username) {
+            respond(source, PacketType.CHAT_RESPONSE, result.envelope.requestId, DeliveryStatus.AUTHENTICATION_FAILED, "The sender identity did not match the connection.")
+            return
+        }
+        val usePermission = when (channel) {
+            "staff" -> Permissions.CHAT_STAFF_USE
+            "admin" -> Permissions.CHAT_ADMIN_USE
+            else -> null
+        }
+        val receivePermission = when (channel) {
+            "staff" -> Permissions.CHAT_STAFF_RECEIVE
+            "admin" -> Permissions.CHAT_ADMIN_RECEIVE
+            else -> null
+        }
+        if (usePermission == null || receivePermission == null) {
+            respond(source, PacketType.CHAT_RESPONSE, result.envelope.requestId, DeliveryStatus.INVALID_CHANNEL, "That chat channel does not exist.")
+            return
+        }
+        if (!permissions.has(player, usePermission)) {
+            respond(source, PacketType.CHAT_RESPONSE, result.envelope.requestId, DeliveryStatus.NO_PERMISSION, "You do not have permission to use ${channel.replaceFirstChar(Char::uppercase)} Chat.")
+            return
+        }
+        val message = runCatching { InputPolicies.CHAT.validate(payload.message) }.getOrNull()
+        if (message == null) {
+            respond(source, PacketType.CHAT_RESPONSE, result.envelope.requestId, DeliveryStatus.INVALID_MESSAGE, "The message was blank or exceeded the allowed length.")
+            return
+        }
+        val serverName = source.serverInfo.name
+        val playerComponent = Component.text(player.username, NamedTextColor.AQUA)
+            .hoverEvent(HoverEvent.showText(Component.text("${player.username}\nServer: $serverName", NamedTextColor.GRAY)))
+            .clickEvent(ClickEvent.suggestCommand("/find ${player.username}"))
         val rendered = messages.render(
-            "staff-chat.sent",
-            mapOf("channel" to Component.text(channel), "player" to Component.text(player.username), "message" to Component.text(message)),
+            "staff-chat.${channel}-format",
+            mapOf("channel" to Component.text(channel), "player" to playerComponent, "server" to Component.text(serverName), "message" to Component.text(message)),
         )
-        proxy.allPlayers.filter { it.hasPermission("veloutils.chat.$channel") }.forEach { it.sendMessage(rendered) }
+        val recipients = proxy.allPlayers.filter { permissions.has(it, receivePermission) }
+        recipients.forEach { it.sendMessage(rendered) }
         proxy.consoleCommandSource.sendMessage(rendered)
+        val status = if (recipients.isEmpty()) DeliveryStatus.NO_RECIPIENTS else DeliveryStatus.SENT
+        val detail = if (recipients.isEmpty()) "No online players can receive ${channel.replaceFirstChar(Char::uppercase)} Chat." else
+            "${channel.replaceFirstChar(Char::uppercase)} Chat message sent to ${recipients.size} recipient${if (recipients.size == 1) "" else "s"}."
+        respond(source, PacketType.CHAT_RESPONSE, result.envelope.requestId, status, detail, recipients.size)
     }
 
     private fun handleNetworkAlert(source: ServerConnection, result: DecodeResult.Accepted) {
         val player = source.player
-        if (!player.hasPermission("veloutils.bridge.alert")) return
-        val fields = runCatching {
-            Triple(
-                result.envelope.payload["actor_id"]?.jsonPrimitive?.content,
-                result.envelope.payload["actor_name"]?.jsonPrimitive?.content,
-                result.envelope.payload["message"]?.jsonPrimitive?.content,
-            )
-        }.getOrNull() ?: return
-        val (actorId, actorName, rawMessage) = fields
-        if (rawMessage == null) return
-        if (actorId != player.uniqueId.toString() || actorName != player.username) return
-        val safeMessage = runCatching { InputPolicies.ALERT.validate(rawMessage) }.getOrNull() ?: return
-        val rendered = Component.text("[Network] ${player.username}: $safeMessage")
+        val payload = runCatching { json.decodeFromJsonElement<AlertPayload>(result.envelope.payload) }.getOrNull()
+        if (payload == null) {
+            respond(source, PacketType.ALERT_RESPONSE, result.envelope.requestId, DeliveryStatus.INVALID_MESSAGE, "The alert request was malformed.")
+            return
+        }
+        if (payload.console) {
+            if (!authenticatedMode) {
+                respond(source, PacketType.ALERT_RESPONSE, result.envelope.requestId, DeliveryStatus.AUTHENTICATION_FAILED, "Console alerts require authenticated bridge messaging.")
+                return
+            }
+        } else {
+            if (payload.actorId != player.uniqueId.toString() || payload.actorName != player.username) {
+                respond(source, PacketType.ALERT_RESPONSE, result.envelope.requestId, DeliveryStatus.AUTHENTICATION_FAILED, "The sender identity did not match the connection.")
+                return
+            }
+            if (!permissions.has(player, Permissions.ALERT_BROADCAST)) {
+                respond(source, PacketType.ALERT_RESPONSE, result.envelope.requestId, DeliveryStatus.NO_PERMISSION, "You do not have permission to broadcast network alerts.")
+                return
+            }
+        }
+        val safeMessage = runCatching { InputPolicies.ALERT.validate(payload.message) }.getOrNull()
+        if (safeMessage == null) {
+            respond(source, PacketType.ALERT_RESPONSE, result.envelope.requestId, DeliveryStatus.INVALID_MESSAGE, "The alert was blank or exceeded the allowed length.")
+            return
+        }
+        val actorName = if (payload.console) "Console (${source.serverInfo.name})" else player.username
+        val rendered = Component.text("[Network] $actorName: $safeMessage", NamedTextColor.YELLOW)
         proxy.allPlayers.forEach { it.sendMessage(rendered) }
         proxy.consoleCommandSource.sendMessage(rendered)
-        eventSink.emit(NetworkEventKind.ALERT, "Network alert", "${player.username}: $safeMessage")
+        eventSink.emit(NetworkEventKind.ALERT, "Network alert", "$actorName: $safeMessage")
+        val status = if (proxy.playerCount == 0) DeliveryStatus.NO_RECIPIENTS else DeliveryStatus.SENT
+        val detail = if (proxy.playerCount == 0) "The alert was accepted, but no players are online." else
+            "Network alert sent to ${proxy.playerCount} player${if (proxy.playerCount == 1) "" else "s"}."
+        respond(source, PacketType.ALERT_RESPONSE, result.envelope.requestId, status, detail, proxy.playerCount)
+    }
+
+    private fun respond(
+        source: ServerConnection,
+        type: PacketType,
+        requestId: String,
+        status: DeliveryStatus,
+        detail: String,
+        recipients: Int = 0,
+    ) {
+        val payload = DeliveryResponsePayload(status == DeliveryStatus.SENT, status, recipients, detail)
+        runCatching {
+            source.sendPluginMessage(CHANNEL, codec.encode(codec.envelope(type, requestId, json.encodeToJsonElement(payload).jsonObject)))
+        }.onFailure { logger.warn("[VeloUtils] Could not return {} acknowledgement to {}", type, source.serverInfo.name) }
     }
 
     private fun pushPlaceholderSnapshot(source: ServerConnection) {
         val values = buildMap {
             put("network_players", proxy.playerCount.toString())
-            put("staff_online", proxy.allPlayers.count { it.hasPermission("veloutils.staff.member") }.toString())
+            put("staff_online", proxy.allPlayers.count { permissions.has(it, Permissions.STAFF_MEMBER) }.toString())
             put("maintenance", "false")
             proxy.allServers.forEach { server ->
                 val key = server.serverInfo.name.lowercase()

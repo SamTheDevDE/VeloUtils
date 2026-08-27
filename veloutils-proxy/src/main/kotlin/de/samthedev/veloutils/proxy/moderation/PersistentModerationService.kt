@@ -8,6 +8,8 @@ import de.samthedev.veloutils.api.PunishmentId
 import de.samthedev.veloutils.api.PunishmentScope
 import de.samthedev.veloutils.api.PunishmentType
 import de.samthedev.veloutils.common.InputPolicies
+import de.samthedev.veloutils.common.Page
+import de.samthedev.veloutils.common.PageRequest
 import de.samthedev.veloutils.proxy.storage.StorageProvider
 import java.net.InetAddress
 import java.sql.Connection
@@ -16,6 +18,13 @@ import java.sql.Statement
 import java.time.Clock
 import java.time.Instant
 import java.util.UUID
+
+public data class PunishmentDetails(
+    val punishment: Punishment,
+    val revokedAt: Instant?,
+    val revokedBy: UUID?,
+    val revocationReason: String?,
+)
 
 public class PersistentModerationService(
     private val storage: StorageProvider,
@@ -101,6 +110,52 @@ public class PersistentModerationService(
         }
     }
 
+    public suspend fun historyPage(playerId: UUID, request: PageRequest): Page<Punishment> = storage.read { connection ->
+        val total = connection.prepareStatement("SELECT COUNT(*) FROM punishments WHERE target_uuid = ?").use { statement ->
+            statement.setString(1, playerId.toString())
+            statement.executeQuery().use { result -> result.next(); result.getLong(1) }
+        }
+        val items = connection.prepareStatement(
+            "SELECT * FROM punishments WHERE target_uuid = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        ).use { statement ->
+            statement.setString(1, playerId.toString())
+            statement.setInt(2, request.pageSize)
+            statement.setLong(3, request.offset)
+            statement.executeQuery().use { result -> buildList { while (result.next()) add(result.toPunishment()) } }
+        }
+        Page(items, request.page, request.pageSize, total)
+    }
+
+    public suspend fun find(id: PunishmentId): PunishmentDetails? = storage.read { connection ->
+        connection.prepareStatement("SELECT * FROM punishments WHERE id = ?").use { statement ->
+            statement.setLong(1, id.value)
+            statement.executeQuery().use { result ->
+                if (!result.next()) null else PunishmentDetails(
+                    result.toPunishment(),
+                    result.getLong("revoked_at").takeUnless { result.wasNull() }?.let(Instant::ofEpochMilli),
+                    result.getString("revoked_by_uuid")?.let(UUID::fromString),
+                    result.getString("revocation_reason"),
+                )
+            }
+        }
+    }
+
+    public suspend fun activeForTypes(playerId: UUID, types: Set<PunishmentType>): List<Punishment> {
+        require(types.isNotEmpty())
+        val placeholders = types.joinToString(",") { "?" }
+        val candidates = storage.read { connection ->
+            connection.prepareStatement(
+                "SELECT * FROM punishments WHERE target_uuid = ? AND active = ? AND type IN ($placeholders) ORDER BY created_at DESC",
+            ).use { statement ->
+                statement.setString(1, playerId.toString())
+                statement.setBoolean(2, true)
+                types.forEachIndexed { index, type -> statement.setString(index + 3, type.name) }
+                statement.executeQuery().use { result -> buildList { while (result.next()) add(result.toPunishment()) } }
+            }
+        }
+        return ModerationPolicy.effective(candidates, Instant.now(clock), null)
+    }
+
     private fun validate(request: CreatePunishment) {
         require(Regex("[A-Za-z0-9_]{1,16}").matches(request.targetName)) { "Target name is invalid" }
         require(request.actorName == "CONSOLE" || Regex("[A-Za-z0-9_]{1,16}").matches(request.actorName)) { "Actor name is invalid" }
@@ -110,7 +165,7 @@ public class PersistentModerationService(
         InputPolicies.PUNISHMENT_REASON.validate(request.reason)
     }
 
-    private fun find(connection: Connection, id: Long): Punishment? = connection.prepareStatement(
+    private fun findPunishment(connection: Connection, id: Long): Punishment? = connection.prepareStatement(
         "SELECT * FROM punishments WHERE id = ?",
     ).use { statement ->
         statement.setLong(1, id)
@@ -118,7 +173,7 @@ public class PersistentModerationService(
     }
 
     private fun requirePunishment(connection: Connection, id: Long): Punishment =
-        checkNotNull(find(connection, id)) { "Punishment disappeared during transaction" }
+        checkNotNull(findPunishment(connection, id)) { "Punishment disappeared during transaction" }
 
     private fun ResultSet.toPunishment(): Punishment = Punishment(
         id = PunishmentId(getLong("id")),

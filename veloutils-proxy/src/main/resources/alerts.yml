@@ -4,5 +4,5 @@ initial-delay: 2m
 interval: 10m
 random-order: false
 messages:
-  - "<gradient:#7c3aed:#a855f7><bold>VeloUtils</bold></gradient> <gray>Welcome to the network!"
-  - "<aqua>Need help?</aqua> <gray>Use <white>/helpop</white> to contact staff."
+  - "<gradient:#7c3aed:#a855f7><bold>VeloUtils</bold></gradient> <gray>Welcome to the network!</gray>"
+  - "<aqua>Need help?</aqua> <gray>Use <white>/helpop</white> to contact staff.</gray>"

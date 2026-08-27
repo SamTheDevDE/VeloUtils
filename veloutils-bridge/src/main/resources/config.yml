@@ -1,6 +1,9 @@
 config-version: 1
-server-name: ""
 heartbeat: 10s
+compatibility:
+  legacy-permissions:
+    enabled: true
+    warn: true
 protocol:
   maximum-payload-bytes: 32768
   authentication:
@@ -9,7 +12,8 @@ protocol:
     shared-secret: ""
   remote-commands:
     enabled: false
-    allowlist: [say, list]
-placeholder-cache-seconds: 15
+    allowlist:
+      - "say"
+      - "list"
 moderation:
-  mute-message: "<red>You are muted.</red> <gray>Reason: <reason>"
+  mute-message: "<red>You are muted.</red> <gray>Reason: <reason></gray>"

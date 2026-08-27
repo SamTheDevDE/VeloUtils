@@ -10,13 +10,21 @@ import java.nio.file.Path
 import java.util.concurrent.atomic.AtomicReference
 
 public class ConfiguredMessages(private val file: Path) {
-    private val miniMessage = MiniMessage.miniMessage()
+    private val miniMessage = MiniMessage.builder().strict(true).build()
     private val templates = AtomicReference<Map<String, Component>>(emptyMap())
     private val placeholderNames = setOf(
         "player", "server", "usage", "reason", "id", "type", "reporter", "channel", "message",
     )
 
     public fun reload() {
+        templates.set(loadTemplates())
+    }
+
+    public fun validate() {
+        loadTemplates()
+    }
+
+    private fun loadTemplates(): Map<String, Component> {
         val root = YamlConfigurationLoader.builder().path(file).build().load()
         val flattened = mutableMapOf<String, String>()
         fun visit(prefix: String, node: org.spongepowered.configurate.ConfigurationNode) {
@@ -29,7 +37,10 @@ public class ConfiguredMessages(private val file: Path) {
         val placeholders = TagResolver.resolver(placeholderNames.map { name ->
             Placeholder.component(name, Component.text(marker(name)))
         })
-        templates.set(flattened.mapValues { (_, template) -> miniMessage.deserialize(template, placeholders) })
+        return flattened.mapValues { (key, template) ->
+            runCatching { miniMessage.deserialize(template, placeholders) }
+                .getOrElse { throw IllegalArgumentException("messages.yml: invalid MiniMessage at '$key': ${it.message}", it) }
+        }
     }
 
     public fun render(key: String, placeholders: Map<String, Component> = emptyMap()): Component {

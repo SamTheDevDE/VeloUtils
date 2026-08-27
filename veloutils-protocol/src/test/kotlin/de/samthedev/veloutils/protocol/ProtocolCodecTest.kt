@@ -60,4 +60,16 @@ class ProtocolCodecTest {
         assertEquals(PacketType.MUTE_STATE, accepted.type)
         assertEquals(payload, Json.decodeFromJsonElement<MuteStatePayload>(accepted.envelope.payload))
     }
+
+    @Test fun `delivery acknowledgements round trip for success and failure`() {
+        val codec = ProtocolCodec(ProtocolSecurity(secret, requireAuthentication = true), clock)
+        listOf(
+            DeliveryResponsePayload(true, DeliveryStatus.SENT, 4, "Staff chat message sent to 4 recipients."),
+            DeliveryResponsePayload(false, DeliveryStatus.NO_PERMISSION, 0, "Permission denied."),
+        ).forEach { payload ->
+            val packet = codec.envelope(PacketType.CHAT_RESPONSE, newRequestId(), Json.encodeToJsonElement(payload).jsonObject)
+            val accepted = assertIs<DecodeResult.Accepted>(codec.decode(codec.encode(packet)))
+            assertEquals(payload, Json.decodeFromJsonElement<DeliveryResponsePayload>(accepted.envelope.payload))
+        }
+    }
 }

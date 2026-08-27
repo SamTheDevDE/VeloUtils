@@ -13,7 +13,7 @@ public data class ServerAccessRule(
 )
 
 public class MaintenanceAccessPolicy(
-    private val bypassPermission: String = "veloutils.maintenance.bypass",
+    private val bypassPermission: String = Permissions.MAINTENANCE_BYPASS.node,
 ) {
     public fun decide(
         snapshot: MaintenanceSnapshot,
@@ -28,7 +28,7 @@ public class MaintenanceAccessPolicy(
 }
 
 public class ServerAccessPolicy(
-    private val bypassPermission: String = "veloutils.server-access.bypass",
+    private val bypassPermission: String = Permissions.SERVER_ACCESS_BYPASS.node,
 ) {
     public fun decide(
         playerId: UUID,
@@ -53,4 +53,3 @@ public object FallbackSelector {
         .filterNot { it.equals(currentServer, ignoreCase = true) }
         .firstOrNull { it in available && authorized(it) }
 }
-

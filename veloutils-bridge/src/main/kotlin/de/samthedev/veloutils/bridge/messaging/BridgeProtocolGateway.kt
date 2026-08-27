@@ -3,6 +3,9 @@ package de.samthedev.veloutils.bridge.messaging
 
 import de.samthedev.veloutils.common.InputPolicies
 import de.samthedev.veloutils.protocol.ChatPayload
+import de.samthedev.veloutils.protocol.AlertPayload
+import de.samthedev.veloutils.protocol.DeliveryResponsePayload
+import de.samthedev.veloutils.protocol.DeliveryStatus
 import de.samthedev.veloutils.protocol.CommandRequestPayload
 import de.samthedev.veloutils.protocol.CommandResponsePayload
 import de.samthedev.veloutils.protocol.PlaceholderPayload
@@ -24,8 +27,10 @@ import kotlinx.serialization.json.encodeToJsonElement
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.put
 import org.bukkit.entity.Player
+import org.bukkit.command.CommandSender
 import org.bukkit.plugin.Plugin
 import org.bukkit.plugin.messaging.PluginMessageListener
+import java.util.concurrent.ConcurrentHashMap
 
 public class BridgeProtocolGateway(
     private val plugin: Plugin,
@@ -39,6 +44,8 @@ public class BridgeProtocolGateway(
 ) : PluginMessageListener {
     public companion object { public const val CHANNEL: String = "veloutils:main" }
     private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
+    private data class PendingFeedback(val sender: CommandSender, val label: String)
+    private val pendingFeedback = ConcurrentHashMap<String, PendingFeedback>()
 
     public fun hello(carrier: Player) {
         val payload = HelloPayload(
@@ -67,17 +74,17 @@ public class BridgeProtocolGateway(
     public fun chat(carrier: Player, channel: String, message: String) {
         val safe = InputPolicies.CHAT.validate(message)
         val payload = ChatPayload(channel, carrier.uniqueId.toString(), carrier.name, safe)
-        send(carrier, PacketType.STAFF_CHAT_MESSAGE, newRequestId(), json.encodeToJsonElement(payload).jsonObject)
+        sendWithFeedback(
+            carrier, carrier, PacketType.STAFF_CHAT_MESSAGE, channel.replaceFirstChar(Char::uppercase) + " Chat",
+            json.encodeToJsonElement(payload).jsonObject,
+        )
     }
 
-    public fun alert(carrier: Player, message: String) {
+    public fun alert(sender: CommandSender, carrier: Player, message: String) {
         val safe = InputPolicies.ALERT.validate(message)
-        val payload = kotlinx.serialization.json.buildJsonObject {
-            put("actor_id", carrier.uniqueId.toString())
-            put("actor_name", carrier.name)
-            put("message", safe)
-        }
-        send(carrier, PacketType.NETWORK_ALERT, newRequestId(), payload)
+        val player = sender as? Player
+        val payload = AlertPayload(player?.uniqueId?.toString(), player?.name ?: "CONSOLE", player == null, safe)
+        sendWithFeedback(sender, carrier, PacketType.NETWORK_ALERT, "Network alert", json.encodeToJsonElement(payload).jsonObject)
     }
 
     override fun onPluginMessageReceived(channel: String, player: Player, message: ByteArray) {
@@ -94,6 +101,7 @@ public class BridgeProtocolGateway(
                         .onSuccess(muteEnforcement::update)
                         .onFailure { plugin.logger.warning("Rejected malformed mute-state packet.") }
                 } else plugin.logger.warning("Ignored mute-state packet because protocol authentication is disabled.")
+                PacketType.CHAT_RESPONSE, PacketType.ALERT_RESPONSE -> handleDeliveryResponse(result.envelope.requestId, result.envelope.payload)
                 else -> plugin.logger.fine("Ignored unsupported VeloUtils proxy packet ${result.type}.")
             }
             is DecodeResult.Rejected -> plugin.logger.warning("Rejected VeloUtils proxy packet: ${result.error.code}")
@@ -122,6 +130,49 @@ public class BridgeProtocolGateway(
     private fun respondToCommand(player: Player, requestId: String, accepted: Boolean, detail: String) {
         val payload = json.encodeToJsonElement(CommandResponsePayload(accepted, detail)).jsonObject
         send(player, PacketType.COMMAND_RESPONSE, requestId, payload)
+    }
+
+    private fun sendWithFeedback(
+        sender: CommandSender,
+        carrier: Player,
+        type: PacketType,
+        label: String,
+        payload: kotlinx.serialization.json.JsonObject,
+    ) {
+        val requestId = newRequestId()
+        pendingFeedback[requestId] = PendingFeedback(sender, label)
+        runCatching {
+            send(carrier, type, requestId, payload)
+        }.onFailure {
+            pendingFeedback.remove(requestId)
+            feedback(sender, "VeloUtils could not send the $label request to the proxy.")
+            return
+        }
+        schedulers.laterAsync(6) {
+            val pending = pendingFeedback.remove(requestId) ?: return@laterAsync
+            feedback(pending.sender, "The proxy did not acknowledge the ${pending.label.lowercase()}; check bridge availability and authentication settings.")
+        }
+    }
+
+    private fun handleDeliveryResponse(requestId: String, payload: kotlinx.serialization.json.JsonObject) {
+        val pending = pendingFeedback.remove(requestId) ?: return
+        val response = runCatching { json.decodeFromJsonElement<DeliveryResponsePayload>(payload) }.getOrNull()
+        if (response == null) {
+            feedback(pending.sender, "The proxy returned an invalid ${pending.label.lowercase()} response.")
+            return
+        }
+        val prefix = when (response.status) {
+            DeliveryStatus.SENT -> "Success: "
+            DeliveryStatus.NO_RECIPIENTS -> "Notice: "
+            else -> "Failed: "
+        }
+        feedback(pending.sender, prefix + response.detail)
+    }
+
+    private fun feedback(sender: CommandSender, message: String) {
+        val component = net.kyori.adventure.text.Component.text(message)
+        if (sender is Player) schedulers.entity(sender) { sender.sendMessage(component) }
+        else schedulers.global { sender.sendMessage(component) }
     }
 
     private fun send(carrier: Player, type: PacketType, requestId: String, payload: kotlinx.serialization.json.JsonObject) {

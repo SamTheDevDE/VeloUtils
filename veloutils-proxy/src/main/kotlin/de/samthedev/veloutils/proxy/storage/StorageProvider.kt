@@ -68,6 +68,13 @@ public object SchemaMigrations {
                 player_uuid VARCHAR(36) NOT NULL, preference_key VARCHAR(80) NOT NULL,
                 preference_value VARCHAR(512) NOT NULL, PRIMARY KEY(player_uuid, preference_key)
             )""".trimIndent(),
+        )), Migration(2, listOf(
+            "ALTER TABLE player_identities ADD COLUMN normalized_name VARCHAR(16)",
+            "ALTER TABLE player_identities ADD COLUMN last_server VARCHAR(64)",
+            "UPDATE player_identities SET normalized_name = LOWER(name) WHERE normalized_name IS NULL",
+            "CREATE INDEX IF NOT EXISTS idx_player_identities_name ON player_identities(normalized_name)",
+            "CREATE INDEX IF NOT EXISTS idx_punishments_target_created ON punishments(target_uuid, created_at)",
+            "CREATE INDEX IF NOT EXISTS idx_reports_status_created ON reports(status, created_at)",
         )))
     }
 }

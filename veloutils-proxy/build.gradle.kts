@@ -34,7 +34,6 @@ dependencies {
     implementation(project(":veloutils-common"))
     implementation(project(":veloutils-protocol"))
     compileOnly("com.velocitypowered:velocity-api:4.1.0-SNAPSHOT")
-    compileOnly("net.luckperms:api:5.5")
     implementation("org.spongepowered:configurate-yaml:4.2.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
@@ -42,6 +41,7 @@ dependencies {
     implementation("org.xerial:sqlite-jdbc:3.50.3.0")
     implementation("com.mysql:mysql-connector-j:9.4.0")
     implementation("org.postgresql:postgresql:42.7.7")
+    testImplementation("net.kyori:adventure-text-minimessage:4.24.0")
 }
 
 tasks.jar { enabled = false }

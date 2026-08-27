@@ -1,5 +1,7 @@
 config-version: 1
-debug: false
+
+ui:
+  page-size: 5
 
 modules:
   maintenance: true
@@ -12,7 +14,6 @@ modules:
   network-commands: true
   discord: false
   alerts: true
-  tebex: false
 
 protocol:
   maximum-payload-bytes: 32768
@@ -29,11 +30,10 @@ protocol:
       - "say"
       - "list"
 
-staff:
-  week-start: MONDAY
-
 compatibility:
-  legacy-permission-aliases: false
+  legacy-permissions:
+    enabled: true
+    warn: true
 
 update-checker:
   enabled: true
@@ -45,16 +45,17 @@ server-access:
   servers:
     builder:
       permission: veloutils.server.builder
-      allowlist: []
-      fallback: [lobby, limbo]
+      fallback:
+        - lobby
+        - limbo
 
 motd:
   entries:
-    - "<gradient:#7c3aed:#a855f7><bold>VeloUtils Network</bold></gradient>\n<gray>{players} players online"
-    - "<aqua>Welcome to the network</aqua>\n<gray>Securely connected by VeloUtils"
+    - "<gradient:#7c3aed:#a855f7><bold>VeloUtils Network</bold></gradient>\n<gray>{players} players online</gray>"
+    - "<aqua>Welcome to the network</aqua>\n<gray>Securely connected by VeloUtils</gray>"
   maintenance-entries:
-    - "<red><bold>Network maintenance</bold></red>\n<gray>{reason}"
+    - "<red><bold>Network maintenance</bold></red>\n<gray>{reason}</gray>"
   maximum-players: 1000
-  sample-players: ["VeloUtils on Velocity 4.1"]
+  sample-players:
+    - "VeloUtils on Velocity 4.1"
   favicon: ""
-  virtual-hosts: {}

@@ -33,5 +33,8 @@ public class PlatformSchedulers(private val plugin: Plugin) {
     public fun repeatAsync(initialSeconds: Long, periodSeconds: Long, task: () -> Unit) {
         server.asyncScheduler.runAtFixedRate(plugin, { task() }, initialSeconds, periodSeconds, TimeUnit.SECONDS)
     }
-}
 
+    public fun laterAsync(delaySeconds: Long, task: () -> Unit) {
+        server.asyncScheduler.runDelayed(plugin, { task() }, delaySeconds, TimeUnit.SECONDS)
+    }
+}

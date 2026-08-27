@@ -1,20 +1,4 @@
 config-version: 1
-maximum-reason-length: 1024
-store-ip-hashes: true
+# Use a unique random value of at least 32 bytes when moderation is enabled.
 ip-hash-key: ""
-default-scope: NETWORK
-notify-permission: veloutils.moderation.notify
-commands:
-  ban: veloutils.moderation.ban
-  tempban: veloutils.moderation.tempban
-  ipban: veloutils.moderation.ipban
-  tempipban: veloutils.moderation.tempipban
-  unban: veloutils.moderation.unban
-  kick: veloutils.moderation.kick
-  mute: veloutils.moderation.mute
-  tempmute: veloutils.moderation.tempmute
-  unmute: veloutils.moderation.unmute
-  warn: veloutils.moderation.warn
-  history: veloutils.moderation.history
-  checkban: veloutils.moderation.checkban
-
+self-punishment-confirmation: 30s

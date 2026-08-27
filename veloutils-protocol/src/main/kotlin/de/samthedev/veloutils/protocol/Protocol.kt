@@ -8,7 +8,7 @@ import kotlinx.serialization.json.JsonObject
 import java.util.UUID
 
 public object ProtocolVersion {
-    public const val CURRENT: Int = 1
+    public const val CURRENT: Int = 2
     public const val MINIMUM_SUPPORTED: Int = 1
 }
 
@@ -23,7 +23,9 @@ public enum class PacketType {
     COMMAND_REQUEST,
     COMMAND_RESPONSE,
     STAFF_CHAT_MESSAGE,
+    CHAT_RESPONSE,
     NETWORK_ALERT,
+    ALERT_RESPONSE,
     PLACEHOLDER_REQUEST,
     PLACEHOLDER_RESPONSE,
     MUTE_STATE,
@@ -110,6 +112,34 @@ public data class ChatPayload(
     @SerialName("player_id") val playerId: String,
     @SerialName("player_name") val playerName: String,
     val message: String,
+)
+
+@Serializable
+public data class AlertPayload(
+    @SerialName("actor_id") val actorId: String? = null,
+    @SerialName("actor_name") val actorName: String,
+    val console: Boolean = false,
+    val message: String,
+)
+
+@Serializable
+public enum class DeliveryStatus {
+    SENT,
+    NO_PERMISSION,
+    MODULE_DISABLED,
+    INVALID_CHANNEL,
+    INVALID_MESSAGE,
+    BRIDGE_UNAVAILABLE,
+    AUTHENTICATION_FAILED,
+    NO_RECIPIENTS,
+}
+
+@Serializable
+public data class DeliveryResponsePayload(
+    val success: Boolean,
+    val status: DeliveryStatus,
+    val recipients: Int = 0,
+    val detail: String,
 )
 
 @Serializable

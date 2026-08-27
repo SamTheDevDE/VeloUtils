@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package de.samthedev.veloutils.proxy.config
 
-import java.time.DayOfWeek
 import java.time.Duration
 import de.samthedev.veloutils.common.ServerAccessRule
 
@@ -16,7 +15,6 @@ public data class ModuleConfig(
     val networkCommands: Boolean,
     val discord: Boolean,
     val alerts: Boolean,
-    val tebex: Boolean,
 )
 
 public data class ProtocolConfig(
@@ -41,9 +39,13 @@ public data class StorageConfig(
 public enum class StorageType { SQLITE, MYSQL, POSTGRESQL }
 
 public data class ModerationConfig(
-    val storeIpHashes: Boolean,
     val ipHashKey: String?,
+    val selfPunishmentConfirmation: Duration,
 )
+
+public data class UiConfig(val pageSize: Int)
+
+public data class LegacyPermissionConfig(val enabled: Boolean, val warn: Boolean)
 
 public data class MotdConfig(
     val entries: List<String>,
@@ -82,8 +84,6 @@ public data class AlertConfig(
 )
 
 public data class ProxyConfig(
-    val configVersion: Int,
-    val debug: Boolean,
     val modules: ModuleConfig,
     val protocol: ProtocolConfig,
     val storage: StorageConfig,
@@ -93,8 +93,8 @@ public data class ProxyConfig(
     val limbo: LimboConfig,
     val updates: UpdateConfig,
     val alerts: AlertConfig,
-    val staffWeekStart: DayOfWeek,
-    val legacyPermissionAliases: Boolean,
+    val ui: UiConfig,
+    val legacyPermissions: LegacyPermissionConfig,
     val serverAccessRules: Map<String, ServerAccessRule>,
 )
 

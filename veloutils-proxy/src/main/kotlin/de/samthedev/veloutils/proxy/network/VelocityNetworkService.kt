@@ -56,7 +56,7 @@ public class VelocityNetworkService(
         val available = proxy.allServers.mapTo(mutableSetOf()) { it.serverInfo.name.lowercase() }
         val selected = FallbackSelector.select(
             destinations, player.currentServer.map { it.serverInfo.name }.orElse(null), available,
-        ) { destination -> player.hasPermission("veloutils.server.$destination") || player.hasPermission("veloutils.server-access.bypass") }
+        ) { true }
             ?: return ConnectionOutcome.NoDestinationAvailable
         val target = proxy.getServer(selected).orElse(null) ?: return ConnectionOutcome.NoDestinationAvailable
         val result = player.createConnectionRequest(target).connect().await()

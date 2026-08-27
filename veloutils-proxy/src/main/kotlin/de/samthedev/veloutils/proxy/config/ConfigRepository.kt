@@ -6,7 +6,6 @@ import org.spongepowered.configurate.ConfigurationNode
 import org.spongepowered.configurate.yaml.YamlConfigurationLoader
 import java.nio.file.Files
 import java.nio.file.Path
-import java.time.DayOfWeek
 import java.util.concurrent.atomic.AtomicReference
 import java.util.UUID
 import java.net.URI
@@ -19,7 +18,6 @@ public class ConfigRepository(private val dataDirectory: Path) {
             "config.yml",
             "messages.yml",
             "commands.yml",
-            "maintenance.yml",
             "moderation.yml",
             "integrations.yml",
             "alerts.yml",
@@ -33,9 +31,39 @@ public class ConfigRepository(private val dataDirectory: Path) {
 
     public fun load(): ProxyConfig {
         Files.createDirectories(dataDirectory)
-        FILES.forEach(::installAndMergeDefaults)
+        FILES.forEach(::installDefault)
+        val parsed = readDocuments(migrate = true)
+        current.set(parsed)
+        return parsed
+    }
+
+    public fun validateFiles(): ProxyConfig = readDocuments(migrate = false)
+
+    public fun missingDefaults(): Map<String, List<String>> = FILES.mapNotNull { fileName ->
+        val disk = loader(fileName).load()
+        val defaults = checkNotNull(javaClass.classLoader.getResourceAsStream(fileName)).use { input ->
+            YamlConfigurationLoader.builder().source { input.bufferedReader() }.build().load()
+        }
+        val missing = mutableListOf<String>()
+        fun visit(path: List<Any>, node: ConfigurationNode) {
+            if (node.isList) {
+                if (disk.node(*path.toTypedArray()).virtual()) missing += path.joinToString(".")
+                return
+            }
+            node.childrenMap().forEach { (key, child) ->
+                val childPath = path + key
+                if (child.childrenMap().isEmpty()) {
+                    if (disk.node(*childPath.toTypedArray()).virtual()) missing += childPath.joinToString(".")
+                } else visit(childPath, child)
+            }
+        }
+        visit(emptyList(), defaults)
+        missing.takeIf(List<String>::isNotEmpty)?.let { fileName to it }
+    }.toMap()
+
+    private fun readDocuments(migrate: Boolean): ProxyConfig {
         val documents = FILES.associateWith { fileName -> loader(fileName).load() }
-        documents.forEach { (fileName, document) -> migrate(document, fileName) }
+        if (migrate) documents.forEach { (fileName, document) -> migrate(document, fileName) }
         val parsed = parse(
             checkNotNull(documents["config.yml"]),
             checkNotNull(documents["storage.yml"]),
@@ -44,41 +72,23 @@ public class ConfigRepository(private val dataDirectory: Path) {
             checkNotNull(documents["alerts.yml"]),
         )
         validate(parsed)
-        current.set(parsed)
         return parsed
     }
 
-    private fun installAndMergeDefaults(fileName: String) {
+    private fun installDefault(fileName: String) {
         val target = dataDirectory.resolve(fileName)
-        val resource = checkNotNull(javaClass.classLoader.getResourceAsStream(fileName)) { "Missing resource $fileName" }
-        resource.use { input ->
-            if (Files.notExists(target)) {
-                Files.copy(input, target)
-                return
-            }
+        if (Files.exists(target)) return
+        checkNotNull(javaClass.classLoader.getResourceAsStream(fileName)) { "Missing resource $fileName" }.use { input ->
+            Files.copy(input, target)
         }
-        val defaults = javaClass.classLoader.getResourceAsStream(fileName).use { input ->
-            checkNotNull(input)
-            YamlConfigurationLoader.builder().source { input.bufferedReader() }.build().load()
-        }
-        val diskLoader = loader(fileName)
-        val disk = diskLoader.load()
-        mergeMissing(disk, defaults)
-        diskLoader.save(disk)
-    }
-
-    private fun mergeMissing(target: ConfigurationNode, defaults: ConfigurationNode) {
-        if (target.virtual() && !defaults.virtual()) {
-            target.from(defaults)
-            return
-        }
-        defaults.childrenMap().forEach { (key, defaultChild) -> mergeMissing(target.node(key), defaultChild) }
     }
 
     private fun migrate(node: ConfigurationNode, fileName: String) {
         val version = node.node("config-version").int
         if (version > CURRENT_VERSION) throw ConfigValidationException(listOf("$fileName uses unsupported config-version $version"))
         if (version < 1) {
+            val source = dataDirectory.resolve(fileName)
+            Files.copy(source, source.resolveSibling("$fileName.pre-migration.bak"), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
             node.node("config-version").set(CURRENT_VERSION)
             loader(fileName).save(node)
         }
@@ -95,16 +105,14 @@ public class ConfigRepository(private val dataDirectory: Path) {
         val storageType = runCatching { StorageType.valueOf(storage.node("type").getString("sqlite").uppercase()) }
             .getOrElse { throw ConfigValidationException(listOf("storage.yml: type must be sqlite, mysql, or postgresql")) }
         return ProxyConfig(
-            configVersion = config.node("config-version").getInt(CURRENT_VERSION),
-            debug = config.node("debug").getBoolean(false),
             modules = ModuleConfig(
                 maintenance = module("maintenance"), reports = module("reports"), staff = module("staff"), staffChat = module("staff-chat"),
-                moderation = module("moderation"), motd = module("motd"), serverAccess = module("server-access"),
+                moderation = module("moderation", false), motd = module("motd"), serverAccess = module("server-access"),
                 networkCommands = module("network-commands"), discord = module("discord", false),
-                alerts = module("alerts"), tebex = module("tebex", false),
+                alerts = module("alerts"),
             ),
             protocol = ProtocolConfig(
-                requireAuthentication = config.node("protocol", "authentication", "required").getBoolean(true),
+                requireAuthentication = config.node("protocol", "authentication", "required").getBoolean(false),
                 sharedSecret = config.node("protocol", "authentication", "shared-secret").string?.trim()?.takeIf(String::isNotEmpty),
                 requestTimeout = DurationParser.parse(config.node("protocol", "request-timeout").getString("5s")),
                 maximumPayloadBytes = config.node("protocol", "maximum-payload-bytes").getInt(32 * 1_024),
@@ -118,8 +126,10 @@ public class ConfigRepository(private val dataDirectory: Path) {
                 password = storage.node("password").getString(""), poolSize = storage.node("pool-size").getInt(10),
             ),
             moderation = ModerationConfig(
-                storeIpHashes = moderation.node("store-ip-hashes").getBoolean(true),
                 ipHashKey = moderation.node("ip-hash-key").getString()?.trim()?.takeIf(String::isNotEmpty),
+                selfPunishmentConfirmation = DurationParser.parse(
+                    moderation.node("self-punishment-confirmation").getString("30s"),
+                ),
             ),
             motd = MotdConfig(
                 entries = config.node("motd", "entries").getList(String::class.java, listOf("<gradient:#7c3aed:#a855f7>VeloUtils</gradient>")),
@@ -156,9 +166,13 @@ public class ConfigRepository(private val dataDirectory: Path) {
                 randomOrder = alerts.node("random-order").getBoolean(false),
                 messages = alerts.node("messages").getList(String::class.java, emptyList()),
             ),
-            staffWeekStart = runCatching { DayOfWeek.valueOf(config.node("staff", "week-start").getString("MONDAY").uppercase()) }
-                .getOrElse { throw ConfigValidationException(listOf("config.yml: staff.week-start is invalid")) },
-            legacyPermissionAliases = config.node("compatibility", "legacy-permission-aliases").getBoolean(false),
+            ui = UiConfig(config.node("ui", "page-size").getInt(5)),
+            legacyPermissions = LegacyPermissionConfig(
+                enabled = config.node("compatibility", "legacy-permissions", "enabled").getBoolean(
+                    config.node("compatibility", "legacy-permission-aliases").getBoolean(true),
+                ),
+                warn = config.node("compatibility", "legacy-permissions", "warn").getBoolean(true),
+            ),
             serverAccessRules = config.node("server-access", "servers").childrenMap().map { (key, node) ->
                 key.toString().lowercase() to ServerAccessRule(
                     permission = node.node("permission").getString()?.trim()?.takeIf(String::isNotEmpty),
@@ -187,13 +201,15 @@ public class ConfigRepository(private val dataDirectory: Path) {
             }
             if (config.storage.poolSize !in 1..64) add("storage pool-size must be between 1 and 64")
             if (config.storage.type != StorageType.SQLITE && config.storage.port !in 1..65_535) add("storage port is invalid")
-            if (config.modules.moderation && config.moderation.storeIpHashes &&
-                (config.moderation.ipHashKey?.toByteArray()?.size ?: 0) < 32
-            ) {
-                add("moderation.yml: ip-hash-key must contain at least 32 UTF-8 bytes when moderation IP hashing is enabled")
+            if (config.modules.moderation && (config.moderation.ipHashKey?.toByteArray()?.size ?: 0) < 32) {
+                add("moderation.yml: ip-hash-key must contain at least 32 UTF-8 bytes when moderation is enabled")
             }
             if (config.modules.motd && config.motd.entries.isEmpty()) add("motd.entries must not be empty")
             if (config.motd.maximumPlayers !in 1..1_000_000) add("motd.maximum-players must be between 1 and 1000000")
+            if (config.ui.pageSize !in 3..20) add("config.yml: ui.page-size must be between 3 and 20")
+            if (config.moderation.selfPunishmentConfirmation !in java.time.Duration.ofSeconds(10)..java.time.Duration.ofMinutes(2)) {
+                add("moderation.yml: self-punishment-confirmation must be between 10s and 2m")
+            }
             if (config.discord.maximumRetries !in 0..5) add("integrations.yml: discord.maximum-retries must be between 0 and 5")
             config.discord.webhooks.filterValues(String::isNotEmpty).forEach { (name, value) ->
                 val uri = runCatching { URI(value) }.getOrNull()

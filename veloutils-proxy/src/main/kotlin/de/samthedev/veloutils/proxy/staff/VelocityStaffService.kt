@@ -17,6 +17,9 @@ import kotlinx.serialization.json.Json
 import de.samthedev.veloutils.proxy.integration.NetworkEventKind
 import de.samthedev.veloutils.proxy.integration.NetworkEventSink
 import de.samthedev.veloutils.proxy.integration.NoopNetworkEventSink
+import de.samthedev.veloutils.common.Permissions
+import de.samthedev.veloutils.proxy.permission.PermissionService
+import de.samthedev.veloutils.proxy.ui.ChatUi
 import java.time.Clock
 import java.time.Duration
 import java.time.Instant
@@ -27,6 +30,7 @@ public class VelocityStaffService(
     private val proxy: ProxyServer,
     private val storage: StorageProvider,
     private val scope: CoroutineScope,
+    private val permissions: PermissionService,
     private val clock: Clock = Clock.systemUTC(),
     private val eventSink: NetworkEventSink = NoopNetworkEventSink,
 ) : StaffService {
@@ -43,10 +47,11 @@ public class VelocityStaffService(
 
     @Subscribe
     public fun onLogin(event: LoginEvent) {
-        if (!event.player.hasPermission("veloutils.staff.member") || event.player.hasPermission("veloutils.staff.time.exclude")) return
+        if (!permissions.has(event.player, Permissions.STAFF_MEMBER) || permissions.has(event.player, Permissions.STAFF_TIME_EXCLUDE)) return
         val now = Instant.now(clock)
         sessions[event.player.uniqueId] = ActiveSession(event.player.username, now, null, now, mutableMapOf())
         eventSink.emit(NetworkEventKind.STAFF_ACTIVITY, "Staff joined", event.player.username)
+        notifyActivity("${event.player.username} joined the network.")
     }
 
     @Subscribe
@@ -61,6 +66,7 @@ public class VelocityStaffService(
                 "Staff changed server",
                 "${event.player.username}: ${event.previousServer?.serverInfo?.name ?: "connecting"} → ${session.currentServer ?: "unknown"}",
             )
+            notifyActivity("${event.player.username} moved to ${session.currentServer ?: "an unknown server"}.")
         }
     }
 
@@ -68,6 +74,7 @@ public class VelocityStaffService(
     public fun onDisconnect(event: DisconnectEvent) {
         val session = sessions.remove(event.player.uniqueId) ?: return
         eventSink.emit(NetworkEventKind.STAFF_ACTIVITY, "Staff left", event.player.username)
+        notifyActivity("${event.player.username} left the network.")
         synchronized(session) { accumulate(session) }
         val endedAt = Instant.now(clock)
         val total = Duration.between(session.startedAt, endedAt).seconds.coerceAtLeast(0)
@@ -128,5 +135,10 @@ public class VelocityStaffService(
             session.serverSeconds.merge(server, Duration.between(session.transitionAt, now).seconds.coerceAtLeast(0), Long::plus)
         }
         session.transitionAt = now
+    }
+
+    private fun notifyActivity(message: String) {
+        proxy.allPlayers.filter { permissions.has(it, Permissions.STAFF_ACTIVITY_NOTIFY) }
+            .forEach { it.sendMessage(ChatUi.info(message)) }
     }
 }

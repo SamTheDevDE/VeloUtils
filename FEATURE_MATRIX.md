@@ -17,7 +17,7 @@ This matrix records how behavior from the reference projects was handled.
 
 | Reference behavior | Decision | VeloUtils direction |
 |---|---|---|
-| `/find`, `/goto`, `/vlist` | Redesign | Async results, explicit console behavior, tab completion |
+| `/find`, `/goto`, `/vlist` | Redesign | Shared UI, explicit console behavior, actions, pagination, tab completion |
 | Alerts and rich presentation | Redesign | Validated broadcasts and authenticated backend alerts |
 | Rotating alerts | Keep | Bounded sequential or non-repeating random schedules |
 | MOTD and favicon | Redesign | Cached rotation, virtual hosts, maintenance branding |
@@ -35,8 +35,8 @@ This matrix records how behavior from the reference projects was handled.
 | Staff time | Redesign | UUID sessions and asynchronous range queries |
 | Staff activity notices | Keep | Optional notification channel |
 | Staff/admin chat | Replace | Explicit configured channels; no unsafe chat replay |
-| Reports and helpop | Redesign | Persistent IDs, claim/close lifecycle, history, cooldowns |
-| Name/IP bans and kick | Replace | UUID records, expiry, scopes, keyed IP hashes, audit fields |
+| Reports and helpop | Redesign | Paginated/filterable lifecycle UI, granular actions, cooldowns, notices |
+| Name/IP bans and kick | Replace | Offline UUID identity, expiry, keyed IP hashes, history/details/revocation UI |
 | Mutes | Redesign | Authenticated state packets with Paper/Folia bridge chat enforcement |
 
 ## Bridge and integrations
@@ -44,11 +44,9 @@ This matrix records how behavior from the reference projects was handled.
 | Reference behavior | Decision | VeloUtils direction |
 |---|---|---|
 | PlaceholderAPI | Redesign | Local snapshots pushed over the protocol |
-| Backend `/vualert` | Keep | Authorized, bounded alert packets |
+| Backend `/vualert` | Keep | Authorized, bounded alert packets with correlated delivery acknowledgement |
 | Backend console execution | Redesign | Disabled by default, authenticated, dual allowlists |
-| Sound forwarding | Redesign | Typed packets and entity scheduling |
 | Discord webhooks | Optional | Typed asynchronous event sinks, bounded retries, and URL redaction |
-| Tebex | Optional | Cached, rate-limited service boundary |
 | LimboAPI | Optional | Registered-server kick fallback compatible with a Limbo server |
 | Update checking | Replace | Scheduled Modrinth provider and semantic version comparison |
 
@@ -58,6 +56,6 @@ This matrix records how behavior from the reference projects was handled.
 |---|---|---|
 | Static API provider | Replace | Plugin instance implements `VeloUtilsApi` |
 | SQLite/MySQL storage | Redesign | Pooling, migrations, prepared SQL; PostgreSQL added |
-| Old permissions | Deprecate | Disabled migration aliases using `veloutils.*` guidance |
+| Old permissions | Deprecate | Enabled-by-default, warning-once aliases mapped to canonical capabilities |
 
 Inactive items remain explicitly listed in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).

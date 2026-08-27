@@ -5,7 +5,6 @@
   "description": "Secure Kotlin-first utilities for modern Velocity networks",
   "authors": ["SamTheDevDE"],
   "dependencies": [
-    {"id": "luckperms", "optional": true},
     {"id": "limboapi", "optional": true}
   ],
   "main": "de.samthedev.veloutils.proxy.bootstrap.VeloUtilsPlugin"

@@ -6,6 +6,7 @@ import com.velocitypowered.api.event.Subscribe
 import com.velocitypowered.api.event.connection.LoginEvent
 import com.velocitypowered.api.event.player.ServerPreConnectEvent
 import de.samthedev.veloutils.api.AccessDecision
+import de.samthedev.veloutils.common.Permissions
 import de.samthedev.veloutils.proxy.util.ConfiguredMessages
 import net.kyori.adventure.text.Component
 
@@ -35,7 +36,7 @@ public class MaintenanceListener(
         server: String?,
     ): AccessDecision = maintenance.access(
         playerId,
-        buildSet { if (permission("veloutils.maintenance.bypass")) add("veloutils.maintenance.bypass") },
+        buildSet { if (permission(Permissions.MAINTENANCE_BYPASS.node)) add(Permissions.MAINTENANCE_BYPASS.node) },
         server,
     )
 

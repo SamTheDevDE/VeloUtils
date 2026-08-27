@@ -22,7 +22,6 @@ VeloUtils is GPL-3.0-only. Dependencies remain subject to their own licenses. Th
 | Velocity API | Proxy API | GPL-3.0 |
 | Paper API | Backend API | MIT |
 | Adventure | Text API | MIT |
-| LuckPerms API | Optional permissions integration | MIT |
 | PlaceholderAPI | Optional placeholders integration | GPL-3.0 |
 | Gradle Wrapper | Build bootstrap | Apache-2.0 |
 

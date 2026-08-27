@@ -8,6 +8,8 @@ import de.samthedev.veloutils.api.ReportService
 import de.samthedev.veloutils.api.ReportStatus
 import de.samthedev.veloutils.api.ReportType
 import de.samthedev.veloutils.common.InputPolicies
+import de.samthedev.veloutils.common.Page
+import de.samthedev.veloutils.common.PageRequest
 import de.samthedev.veloutils.proxy.storage.StorageProvider
 import java.sql.Connection
 import java.sql.ResultSet
@@ -15,6 +17,8 @@ import java.sql.Statement
 import java.time.Clock
 import java.time.Instant
 import java.util.UUID
+
+public enum class ReportFilter { ALL, OPEN, CLAIMED, CLOSED, MINE }
 
 public class PersistentReportService(
     private val storage: StorageProvider,
@@ -59,6 +63,34 @@ public class PersistentReportService(
                 statement.executeQuery().use { result -> buildList { while (result.next()) add(result.toReport()) } }
             }
         }
+    }
+
+    public suspend fun page(filter: ReportFilter, staffId: UUID?, request: PageRequest): Page<Report> = storage.read { connection ->
+        require(filter != ReportFilter.MINE || staffId != null) { "The mine filter requires a player sender" }
+        val condition = when (filter) {
+            ReportFilter.ALL -> "1 = 1"
+            ReportFilter.MINE -> "assigned_staff_uuid = ?"
+            else -> "status = ?"
+        }
+        val parameter = when (filter) {
+            ReportFilter.ALL -> null
+            ReportFilter.MINE -> staffId.toString()
+            else -> filter.name
+        }
+        val total = connection.prepareStatement("SELECT COUNT(*) FROM reports WHERE $condition").use { statement ->
+            parameter?.let { statement.setString(1, it) }
+            statement.executeQuery().use { result -> result.next(); result.getLong(1) }
+        }
+        val items = connection.prepareStatement(
+            "SELECT * FROM reports WHERE $condition ORDER BY created_at DESC LIMIT ? OFFSET ?",
+        ).use { statement ->
+            var index = 1
+            parameter?.let { statement.setString(index++, it) }
+            statement.setInt(index++, request.pageSize)
+            statement.setLong(index, request.offset)
+            statement.executeQuery().use { result -> buildList { while (result.next()) add(result.toReport()) } }
+        }
+        Page(items, request.page, request.pageSize, total)
     }
 
     override suspend fun claim(id: ReportId, staffId: UUID, staffName: String): Report {

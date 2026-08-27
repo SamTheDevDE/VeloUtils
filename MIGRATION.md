@@ -1,34 +1,77 @@
-# Migrating from VelocityUtils
+# Migration guide
 
-Migration is manual and non-destructive. VeloUtils does not modify the old plugin folder or database.
+VeloUtils migrations are non-destructive where possible. Normal startup reads existing YAML without saving it. A versioned file migration creates `<file>.pre-migration.bak` before changing the original.
 
-## Before migrating
+## Upgrading a VeloUtils beta
 
-1. Back up both legacy plugin folders.
-2. Back up every legacy database.
-3. Install VeloUtils into a new folder.
-4. Start it once to generate clean configuration files.
-5. Stop the network before copying settings.
+1. Back up `plugins/VeloUtils`, `plugins/VeloUtilsBridge`, and the database.
+2. Replace both plugin JARs together; protocol version 2 adds staff-chat and alert acknowledgements.
+3. Start a test proxy/backend pair.
+4. Run `/veloutils config validate` and `/veloutils config diff`.
+5. Migrate permissions using the table below.
+6. Restart after config changes. `/veloutils reload` hot-reloads only `messages.yml`.
 
-## Map legacy settings
+`maintenance.yml` was removed because it contained no authoritative runtime settings. Maintenance state remains in storage; presentation uses `messages.yml`, and server fallbacks use `config.yml`.
 
-| Legacy concept | VeloUtils destination | Important change |
+Removed settings are not silently simulated:
+
+- The built-in `permissions:` map and move-command `fallback:` field in `commands.yml` were unused and are gone.
+- Ignored SQLite path/timeout settings are gone; SQLite is always `plugins/VeloUtils/data.db`.
+- The unused `staff.week-start` and ineffective `store-ip-hashes` toggles are gone; IP bans always use the required keyed hash.
+- Unused legacy message keys were removed; active configurable templates remain in `messages.yml`.
+- The unused top-level `debug` toggle was removed; `/veloutils debug` remains a permission-controlled redacted diagnostics command.
+- Unused bridge `server-name` and `placeholder-cache-seconds` fields were removed; `heartbeat` is now validated and controls the schedule.
+- Unimplemented LuckPerms/Tebex integration settings are gone.
+- The former `modules.tebex` flag is gone.
+
+## Permission mappings
+
+Legacy checks are enabled by default:
+
+```yaml
+compatibility:
+  legacy-permissions:
+    enabled: true
+    warn: true
+```
+
+Apply the same compatibility block to the bridge config. Each old alias logs at most one warning per process. Disable compatibility only after migrating every group.
+
+| Legacy node | Canonical replacement |
+|---|---|
+| `veloutils.command.admin` | The matching `veloutils.admin.status`, `.reload`, `.debug`, `.version`, and `.config` capabilities |
+| `veloutils.command.find` | `veloutils.network.find` |
+| `veloutils.command.goto` | `veloutils.network.goto` |
+| `veloutils.command.list` | `veloutils.network.list` |
+| `veloutils.command.network` | `veloutils.network.status` |
+| `veloutils.command.serverinfo` | `veloutils.network.serverinfo` |
+| `veloutils.command.send` | `veloutils.network.send` |
+| `veloutils.command.sendall` | `veloutils.network.sendall` |
+| `veloutils.command.serverexecute` | `veloutils.network.execute` |
+| `veloutils.maintenance.command` | `veloutils.maintenance.manage` |
+| `veloutils.staff.list` | `veloutils.staff.list.view` |
+| `veloutils.staff.time` | `veloutils.staff.time.view.self` and/or `.others` |
+| `veloutils.staff.notify` | `veloutils.staff.activity.notify` |
+| `veloutils.chat.staff` | `veloutils.chat.staff.use` and/or `.receive` |
+| `veloutils.chat.admin` | `veloutils.chat.admin.use` and/or `.receive` |
+| `veloutils.report.create` | `veloutils.reports.create` |
+| `veloutils.report.manage` | The needed `veloutils.reports.view`, `.claim`, `.close`, and `.notify` capabilities |
+| `veloutils.moderation.history` | `veloutils.moderation.history.view` and `veloutils.moderation.punishment.view` |
+| `veloutils.moderation.checkban` | `veloutils.moderation.ban.view` |
+| `veloutils.bridge.alert` | `veloutils.alert.broadcast` |
+
+Unchanged moderation action nodes need no migration. Custom command permissions remain whatever you define in `commands.yml`.
+
+## Migrating from VelocityUtils
+
+Do not point VeloUtils at an unverified legacy database.
+
+| Legacy concept | Destination | Important change |
 |---|---|---|
-| `movecommands` | `commands.yml` | Add explicit aliases, permissions, fallbacks, and cooldowns |
-| `messagescommands` | `commands.yml` | Convert text to MiniMessage and review URLs/click actions |
-| Maintenance allowlist | Maintenance storage/config | Resolve names to UUIDs; never guess unresolved players |
-| Discord webhooks | `integrations.yml` | Never paste secrets into logs or issues |
-| Database settings | `storage.yml` | Use a new VeloUtils schema |
-| Staff/report/helpop permissions | Canonical `veloutils.*` permissions | Legacy aliases are disabled by default |
-| Plugin-message setup | Proxy and bridge `config.yml` | Create a new shared secret; old channels are incompatible |
+| Move/message commands | `commands.yml` | Explicit aliases, destinations, permissions, cooldowns, and MiniMessage |
+| Maintenance allowlist | VeloUtils storage | UUID identities; unresolved names are never guessed |
+| Discord webhooks | `integrations.yml` | Official HTTPS Discord webhook URLs only |
+| Database | `storage.yml` | New versioned schema |
+| Plugin messaging | Proxy and bridge `config.yml` | New shared secret and protocol channel |
 
-## Validate the migration
-
-- Start a test proxy and one backend first.
-- Confirm the bridge handshake in `/veloutils status`.
-- Test maintenance bypass and server fallback with non-admin accounts.
-- Test report persistence across restart.
-- Confirm no credentials or raw addresses appear in diagnostics.
-- Add remaining backends only after the first pair works.
-
-Do not point VeloUtils at an old SQLite file without a verified backup. Unknown legacy fields should be reviewed manually rather than copied wholesale.
+Verify bridge status, maintenance bypass, reports, offline history, mute enforcement, and non-admin server access on staging before rolling out to every backend.

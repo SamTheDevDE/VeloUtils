@@ -29,11 +29,15 @@ Plugin messages are transport, not identity. The proxy binds messages to the act
 ## State and configuration
 
 - Configuration loads into immutable snapshots.
-- Reload validates a replacement before publishing it.
+- Normal startup never saves existing YAML merely to merge defaults.
+- Migrations create a `.pre-migration.bak` before changing a file.
+- Reload validates every file, then replaces only message templates.
 - Restart-only settings are not hot-swapped.
 - Hot-path state uses bounded caches or immutable views.
 - Persistent state is written asynchronously.
 - Disabled modules do not register their commands or listeners.
+- Player identities use UUIDs with a bounded recent-name cache for non-blocking suggestions.
+- Report and punishment pages use indexed `COUNT`, `LIMIT`, and `OFFSET` queries.
 
 ## Threading
 

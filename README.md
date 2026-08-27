@@ -8,7 +8,9 @@ VeloUtils is a Kotlin-first utility platform for modern Minecraft networks. It c
 ## Highlights
 
 - Network discovery, transfer, status, and configurable commands
+- Consistent Adventure chat UI with safe actions and configurable pagination
 - Persistent maintenance, reports, moderation, and staff sessions
+- Offline-player moderation, player-oriented revocation, and complete punishment details
 - Authenticated backend mute enforcement
 - Permission and UUID-based server access rules
 - Cached rotating and virtual-host MOTDs
@@ -17,7 +19,7 @@ VeloUtils is a Kotlin-first utility platform for modern Minecraft networks. It c
 - Versioned bridge protocol with optional HMAC authentication
 - Paper and genuine Folia scheduler support
 - SQLite, MySQL/MariaDB, and PostgreSQL storage
-- Optional PlaceholderAPI and LuckPerms integration points
+- Standard Velocity permissions, compatible with providers such as LuckPerms
 
 ## Requirements
 
@@ -27,7 +29,6 @@ VeloUtils is a Kotlin-first utility platform for modern Minecraft networks. It c
 | Proxy | Velocity 4.1 or newer in the 4.x line |
 | Backend bridge | Paper or Folia 26.2 |
 | PlaceholderAPI | Optional |
-| LuckPerms | Optional |
 
 ## Installation
 
@@ -64,16 +65,15 @@ VeloUtils separates configuration by responsibility:
 
 | File | Purpose |
 |---|---|
-| `config.yml` | Modules, protocol, MOTD, and server access |
+| `config.yml` | Modules, UI, protocol, compatibility, updates, MOTD, and server access |
 | `messages.yml` | MiniMessage text |
 | `commands.yml` | Move and informational commands |
-| `maintenance.yml` | Maintenance presentation and fallback settings |
 | `moderation.yml` | Punishment and IP-hashing settings |
 | `integrations.yml` | Optional external integrations |
 | `alerts.yml` | Rotating network announcements |
 | `storage.yml` | Database connection and pool settings |
 
-Every file has a `config-version`. Missing defaults are merged without deleting unknown administrator fields. Invalid settings fail early with an actionable error.
+Every file has a `config-version`. Existing files are read without being rewritten, so comments and formatting survive normal startup. New defaults are used in memory and can be inspected with `/veloutils config diff`. A real migration creates a `.pre-migration.bak` backup before changing a file. Invalid settings fail early with an actionable error.
 
 ## Project layout
 

@@ -19,6 +19,7 @@ import de.samthedev.veloutils.proxy.command.ReportManageCommand
 import de.samthedev.veloutils.proxy.command.reportCooldowns
 import de.samthedev.veloutils.proxy.command.ModerationCommand
 import de.samthedev.veloutils.proxy.command.ModerationCommandKind
+import de.samthedev.veloutils.proxy.command.PunishmentCommand
 import de.samthedev.veloutils.proxy.command.StaffCommand
 import de.samthedev.veloutils.proxy.command.StaffCommandKind
 import de.samthedev.veloutils.proxy.command.ConfiguredCommandLoader
@@ -48,6 +49,9 @@ import de.samthedev.veloutils.proxy.network.MotdListener
 import de.samthedev.veloutils.proxy.storage.DatabaseDialect
 import de.samthedev.veloutils.proxy.storage.JdbcStorageProvider
 import de.samthedev.veloutils.proxy.storage.StorageProvider
+import de.samthedev.veloutils.proxy.permission.PermissionService
+import de.samthedev.veloutils.proxy.player.PlayerIdentityService
+import de.samthedev.veloutils.proxy.moderation.SelfPunishmentConfirmations
 import de.samthedev.veloutils.proxy.util.ConfiguredMessages
 import de.samthedev.veloutils.common.RemoteCommandPolicy
 import de.samthedev.veloutils.proxy.integration.DiscordWebhookService
@@ -95,6 +99,11 @@ public class VeloUtilsPlugin @Inject constructor(
             runCatching {
                 val snapshot = config.load()
                 messages.reload()
+                val permissions = PermissionService(
+                    snapshot.legacyPermissions.enabled,
+                    snapshot.legacyPermissions.warn,
+                    logger,
+                )
                 val eventSink: NetworkEventSink = if (snapshot.modules.discord) {
                     DiscordWebhookService(snapshot.discord, scope, logger).also(ownedResources::add)
                 } else NoopNetworkEventSink
@@ -115,6 +124,8 @@ public class VeloUtilsPlugin @Inject constructor(
                     messages,
                     snapshot.modules.staffChat,
                     eventSink,
+                    permissions,
+                    snapshot.protocol.requireAuthentication,
                 )
                 protocolGateway = gateway
                 proxy.channelRegistrar.register(ProxyProtocolGateway.CHANNEL)
@@ -123,7 +134,9 @@ public class VeloUtilsPlugin @Inject constructor(
                 val network = VelocityNetworkService(proxy, bridgeStatuses)
                 val activeStorage = createStorage(snapshot.storage).also { it.initialize() }
                 storage = activeStorage
-                registerCommands(network, gateway, snapshot)
+                val identities = PlayerIdentityService(activeStorage, scope).also { it.loadRecent() }
+                proxy.eventManager.register(this@VeloUtilsPlugin, identities)
+                registerCommands(network, gateway, snapshot, permissions)
                 if (snapshot.modules.networkCommands) {
                     val configuredCommands = ConfiguredCommandLoader.load(dataDirectory.resolve("commands.yml"))
                     configuredCommands.move.forEach { definition ->
@@ -153,7 +166,7 @@ public class VeloUtilsPlugin @Inject constructor(
                     proxy.eventManager.register(this@VeloUtilsPlugin, MaintenanceListener(maintenance, messages))
                     proxy.commandManager.register(
                         proxy.commandManager.metaBuilder("maintenance").plugin(this@VeloUtilsPlugin).build(),
-                        MaintenanceCommand(proxy, maintenance, messages, scope, eventSink),
+                        MaintenanceCommand(proxy, maintenance, messages, identities, permissions, scope, eventSink),
                     )
                 }
                 if (snapshot.modules.reports) {
@@ -162,21 +175,21 @@ public class VeloUtilsPlugin @Inject constructor(
                     val cooldowns = reportCooldowns()
                     proxy.commandManager.register(
                         proxy.commandManager.metaBuilder("report").plugin(this@VeloUtilsPlugin).build(),
-                        ReportCreateCommand(ReportType.PLAYER, proxy, reports, messages, scope, cooldowns, eventSink),
+                        ReportCreateCommand(ReportType.PLAYER, proxy, reports, messages, permissions, scope, cooldowns, eventSink),
                     )
                     proxy.commandManager.register(
                         proxy.commandManager.metaBuilder("helpop").plugin(this@VeloUtilsPlugin).build(),
-                        ReportCreateCommand(ReportType.HELPOP, proxy, reports, messages, scope, cooldowns, eventSink),
+                        ReportCreateCommand(ReportType.HELPOP, proxy, reports, messages, permissions, scope, cooldowns, eventSink),
                     )
                     proxy.commandManager.register(
                         proxy.commandManager.metaBuilder("reports").plugin(this@VeloUtilsPlugin).build(),
-                        ReportManageCommand(reports, messages, scope),
+                        ReportManageCommand(proxy, reports, permissions, snapshot.ui.pageSize, scope),
                     )
                 }
                 if (snapshot.modules.serverAccess) {
                     proxy.eventManager.register(
                         this@VeloUtilsPlugin,
-                        ServerAccessListener(proxy, snapshot.serverAccessRules, messages),
+                        ServerAccessListener(proxy, snapshot.serverAccessRules, messages, permissions),
                     )
                 }
                 if (snapshot.modules.moderation) {
@@ -190,6 +203,7 @@ public class VeloUtilsPlugin @Inject constructor(
                             "[VeloUtils] Mute commands are disabled because authenticated bridge messaging is required for mute enforcement.",
                         )
                     }
+                    val confirmations = SelfPunishmentConfirmations(snapshot.moderation.selfPunishmentConfirmation)
                     ModerationCommandKind.entries.filter { kind ->
                         snapshot.protocol.requireAuthentication ||
                             kind !in setOf(ModerationCommandKind.MUTE, ModerationCommandKind.TEMPMUTE, ModerationCommandKind.UNMUTE)
@@ -197,21 +211,28 @@ public class VeloUtilsPlugin @Inject constructor(
                         val name = kind.name.lowercase()
                         proxy.commandManager.register(
                             proxy.commandManager.metaBuilder(name).plugin(this@VeloUtilsPlugin).build(),
-                            ModerationCommand(kind, proxy, moderation, gateway, messages, scope, eventSink),
+                            ModerationCommand(
+                                kind, proxy, moderation, identities, gateway, permissions, confirmations,
+                                snapshot.ui.pageSize, scope, eventSink,
+                            ),
                         )
                     }
+                    proxy.commandManager.register(
+                        proxy.commandManager.metaBuilder("punishment").plugin(this@VeloUtilsPlugin).build(),
+                        PunishmentCommand(moderation, identities, permissions, scope),
+                    )
                 }
                 if (snapshot.modules.staff) {
-                    val staff = VelocityStaffService(proxy, activeStorage, scope, eventSink = eventSink)
+                    val staff = VelocityStaffService(proxy, activeStorage, scope, permissions, eventSink = eventSink)
                     staffApi = staff
                     proxy.eventManager.register(this@VeloUtilsPlugin, staff)
                     proxy.commandManager.register(
                         proxy.commandManager.metaBuilder("stafflist").plugin(this@VeloUtilsPlugin).build(),
-                        StaffCommand(StaffCommandKind.LIST, proxy, staff, messages, scope),
+                        StaffCommand(StaffCommandKind.LIST, staff, identities, permissions, snapshot.ui.pageSize, scope),
                     )
                     proxy.commandManager.register(
                         proxy.commandManager.metaBuilder("stafftime").plugin(this@VeloUtilsPlugin).build(),
-                        StaffCommand(StaffCommandKind.TIME, proxy, staff, messages, scope),
+                        StaffCommand(StaffCommandKind.TIME, staff, identities, permissions, snapshot.ui.pageSize, scope),
                     )
                 }
                 if (snapshot.modules.motd) {
@@ -242,9 +263,13 @@ public class VeloUtilsPlugin @Inject constructor(
         network: VelocityNetworkService,
         gateway: ProxyProtocolGateway,
         snapshot: de.samthedev.veloutils.proxy.config.ProxyConfig,
+        permissions: PermissionService,
     ) {
         val manager = proxy.commandManager
-        manager.register(manager.metaBuilder("veloutils").aliases("vu").plugin(this).build(), RootCommand(BuildInfo.VERSION, config, messages, network, scope))
+        manager.register(
+            manager.metaBuilder("veloutils").aliases("vu").plugin(this).build(),
+            RootCommand(BuildInfo.VERSION, config, messages, network, permissions, scope),
+        )
         if (snapshot.modules.networkCommands) {
             mapOf(
                 "find" to NetworkCommandKind.FIND,
@@ -255,13 +280,16 @@ public class VeloUtilsPlugin @Inject constructor(
                 "send" to NetworkCommandKind.SEND,
                 "sendall" to NetworkCommandKind.SEND_ALL,
             ).forEach { (name, kind) ->
-                manager.register(manager.metaBuilder(name).plugin(this).build(), NetworkCommand(kind, proxy, network, messages, scope))
+                manager.register(
+                    manager.metaBuilder(name).plugin(this).build(),
+                    NetworkCommand(kind, proxy, network, permissions, snapshot.ui.pageSize, scope),
+                )
             }
         }
         if (snapshot.protocol.remoteCommandsEnabled) {
             manager.register(
                 manager.metaBuilder("serverexecute").plugin(this).build(),
-                ServerExecuteCommand(proxy, gateway, messages),
+                ServerExecuteCommand(proxy, gateway, permissions),
             )
         }
     }
