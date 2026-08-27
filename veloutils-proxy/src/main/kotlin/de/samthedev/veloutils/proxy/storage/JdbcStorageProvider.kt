@@ -22,6 +22,7 @@ public class JdbcStorageProvider(
     private val dispatcher: ExecutorCoroutineDispatcher = executor.asCoroutineDispatcher()
     private val dataSource = HikariDataSource(HikariConfig().apply {
         this.jdbcUrl = jdbcUrl
+        driverClassName = dialect.driverClassName
         this.username = username
         this.password = password
         maximumPoolSize = poolSize.coerceIn(1, 64)

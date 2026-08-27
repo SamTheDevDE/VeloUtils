@@ -18,6 +18,11 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 - SQLite, MySQL/MariaDB, and PostgreSQL migrations on a dedicated dispatcher.
 - Automated tests, artifact inspection, CI, release automation, CodeQL, and dependency review.
 
+### Fixed
+
+- Explicitly load packaged JDBC drivers so SQLite, MySQL, and PostgreSQL work with Velocity's isolated plugin classloader.
+- Commit the Gradle wrapper JAR and update GitHub Actions to Node 24-compatible releases.
+
 ### Known limitations
 
 - See [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) for features intentionally withheld or still represented only by extension boundaries.

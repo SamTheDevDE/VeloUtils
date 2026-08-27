@@ -7,6 +7,13 @@ import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class SchemaMigrationsTest {
+    @Test
+    fun `database dialects declare their packaged drivers`() {
+        assertEquals("org.sqlite.JDBC", DatabaseDialect.SQLITE.driverClassName)
+        assertEquals("com.mysql.cj.jdbc.Driver", DatabaseDialect.MYSQL.driverClassName)
+        assertEquals("org.postgresql.Driver", DatabaseDialect.POSTGRESQL.driverClassName)
+    }
+
     @Test fun `sqlite migrations are repeatable`() = runBlocking {
         val database = Files.createTempFile("veloutils-test", ".db")
         val storage = JdbcStorageProvider("jdbc:sqlite:$database", null, null, DatabaseDialect.SQLITE, 1)

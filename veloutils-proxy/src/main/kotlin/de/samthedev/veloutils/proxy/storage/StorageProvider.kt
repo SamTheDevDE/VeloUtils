@@ -10,7 +10,11 @@ public interface StorageProvider : AutoCloseable {
     override fun close()
 }
 
-public enum class DatabaseDialect { SQLITE, MYSQL, POSTGRESQL }
+public enum class DatabaseDialect(public val driverClassName: String) {
+    SQLITE("org.sqlite.JDBC"),
+    MYSQL("com.mysql.cj.jdbc.Driver"),
+    POSTGRESQL("org.postgresql.Driver"),
+}
 
 public data class Migration(val version: Int, val statements: List<String>)
 
@@ -67,4 +71,3 @@ public object SchemaMigrations {
         )))
     }
 }
-
