@@ -12,6 +12,7 @@ bin/
 *.log
 *.class
 *.jar
+!gradle/wrapper/gradle-wrapper.jar
 hs_err_pid*
 replay_pid*
 .DS_Store
