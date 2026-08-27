@@ -28,6 +28,7 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 
 - Explicitly load packaged JDBC drivers so SQLite, MySQL, and PostgreSQL work with Velocity's isolated plugin classloader.
 - Commit the Gradle wrapper JAR and update GitHub Actions to Node 24-compatible releases.
+- Accept legacy `<reset>` message templates and ignore removed message keys during active-template validation.
 - Preserve YAML comments and formatting by avoiding normal-startup rewrites; migrations now create backups.
 - Remove ignored configuration fields and the obsolete `maintenance.yml` resource.
 - Remove an undocumented extra per-destination permission check from configured move commands.
