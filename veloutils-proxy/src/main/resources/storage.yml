@@ -1,0 +1,11 @@
+config-version: 1
+type: sqlite
+host: 127.0.0.1
+port: 3306
+database: veloutils
+username: veloutils
+password: ""
+pool-size: 10
+connection-timeout: 10s
+sqlite-file: data.db
+

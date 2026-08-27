@@ -1,0 +1,17 @@
+config-version: 1
+global:
+  active: false
+  reason: "Scheduled maintenance"
+servers: {}
+allowlist: []
+bypass-permission: veloutils.maintenance.bypass
+notify-permission: veloutils.maintenance.notify
+kick-message: "<red>The network is under maintenance.</red>\n<gray><reason>"
+motd:
+  - "<red>Maintenance in progress"
+  - "<gray><reason>"
+favicon: ""
+countdown: [1h, 30m, 10m, 5m, 1m, 30s, 10s]
+transfer-before-activation: true
+fallback-servers: [limbo, lobby]
+

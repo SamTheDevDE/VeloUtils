@@ -1,0 +1,15 @@
+config-version: 1
+server-name: ""
+heartbeat: 10s
+protocol:
+  maximum-payload-bytes: 32768
+  authentication:
+    # Must match the proxy. Enable on both ends for production networks.
+    required: false
+    shared-secret: ""
+  remote-commands:
+    enabled: false
+    allowlist: [say, list]
+placeholder-cache-seconds: 15
+moderation:
+  mute-message: "<red>You are muted.</red> <gray>Reason: <reason>"

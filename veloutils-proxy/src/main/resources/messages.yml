@@ -1,0 +1,24 @@
+config-version: 1
+prefix: "<dark_gray>[<gradient:#7c3aed:#a855f7>VeloUtils</gradient><dark_gray>] <reset>"
+no-permission: "<red>You do not have permission to do that."
+players-only: "<red>This command can only be used by a player."
+invalid-arguments: "<red>Invalid arguments. Use <usage>."
+player-offline: "<red><player> is not currently online."
+server-unavailable: "<red>No configured destination is currently available."
+connecting: "<green>Connecting to <server>..."
+reload-success: "<green>Reloaded configuration. Restart-required settings were left unchanged."
+reload-failed: "<red>Reload failed. Check the proxy log; the previous configuration is still active."
+maintenance:
+  denied: "<red>The network is under maintenance.</red> <gray><reason>"
+  enabled: "<green>Maintenance enabled: <reason>"
+  disabled: "<yellow>Maintenance disabled."
+server-access:
+  denied: "<red>You cannot access that server."
+report:
+  created: "<green>Report <id> was submitted."
+  staff-notification: "<yellow>New <type> <id> from <reporter>: <reason>"
+moderation:
+  banned: "<red>You are banned from this network.</red>\n<gray>Reason: <reason>"
+staff-chat:
+  sent: "<dark_gray>[<aqua><channel></aqua>] <player>: <message>"
+

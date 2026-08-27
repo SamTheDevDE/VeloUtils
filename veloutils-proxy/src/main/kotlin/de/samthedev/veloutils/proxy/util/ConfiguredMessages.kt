@@ -1,0 +1,44 @@
+// SPDX-License-Identifier: GPL-3.0-only
+package de.samthedev.veloutils.proxy.util
+
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.minimessage.MiniMessage
+import net.kyori.adventure.text.minimessage.tag.resolver.Placeholder
+import net.kyori.adventure.text.minimessage.tag.resolver.TagResolver
+import org.spongepowered.configurate.yaml.YamlConfigurationLoader
+import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicReference
+
+public class ConfiguredMessages(private val file: Path) {
+    private val miniMessage = MiniMessage.miniMessage()
+    private val templates = AtomicReference<Map<String, Component>>(emptyMap())
+    private val placeholderNames = setOf(
+        "player", "server", "usage", "reason", "id", "type", "reporter", "channel", "message",
+    )
+
+    public fun reload() {
+        val root = YamlConfigurationLoader.builder().path(file).build().load()
+        val flattened = mutableMapOf<String, String>()
+        fun visit(prefix: String, node: org.spongepowered.configurate.ConfigurationNode) {
+            node.childrenMap().forEach { (key, child) ->
+                val path = if (prefix.isEmpty()) key.toString() else "$prefix.$key"
+                if (child.childrenMap().isEmpty()) child.string?.let { flattened[path] = it } else visit(path, child)
+            }
+        }
+        visit("", root)
+        val placeholders = TagResolver.resolver(placeholderNames.map { name ->
+            Placeholder.component(name, Component.text(marker(name)))
+        })
+        templates.set(flattened.mapValues { (_, template) -> miniMessage.deserialize(template, placeholders) })
+    }
+
+    public fun render(key: String, placeholders: Map<String, Component> = emptyMap()): Component {
+        val template = templates.get()[key] ?: miniMessage.deserialize("<red>Missing message: ${escapeKey(key)}")
+        return placeholders.entries.fold(template) { component, (name, replacement) ->
+            component.replaceText { builder -> builder.matchLiteral(marker(name)).replacement(replacement) }
+        }
+    }
+
+    private fun escapeKey(value: String): String = value.replace("<", "").replace(">", "")
+    private fun marker(name: String): String = "\uE000$name\uE001"
+}

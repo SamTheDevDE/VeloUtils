@@ -1,0 +1,29 @@
+name: VeloUtilsBridge
+version: '${version}'
+main: de.samthedev.veloutils.bridge.bootstrap.VeloUtilsBridgePlugin
+description: Lightweight Paper and Folia bridge for VeloUtils
+api-version: '26.2'
+author: SamTheDevDE
+folia-supported: true
+softdepend: [PlaceholderAPI]
+commands:
+  vualert:
+    description: Sends an authorized network alert through VeloUtils
+    permission: veloutils.bridge.alert
+    usage: /vualert <message>
+  sc:
+    description: Sends a staff-channel message
+    permission: veloutils.chat.staff
+    usage: /sc <message>
+  ac:
+    description: Sends an admin-channel message
+    permission: veloutils.chat.admin
+    usage: /ac <message>
+permissions:
+  veloutils.bridge.alert:
+    default: op
+  veloutils.chat.staff:
+    default: op
+  veloutils.chat.admin:
+    default: op
+
