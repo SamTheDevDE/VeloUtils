@@ -1,34 +1,54 @@
 config-version: 1
+
 default-channel: server
+
+# Dynamic placeholders are literal text by default.
+#
+# Only placeholders explicitly listed here may provide safe visual
+# MiniMessage formatting such as colors, bold text and gradients.
+#
+# Interactive tags such as click, hover, insertion, selectors, NBT,
+# fonts and other structural tags are not permitted.
+formatting:
+  styled-placeholders:
+    - "papi_luckperms_prefix"
+    - "papi_luckperms_suffix"
+
 channels:
   server:
     scope: server
     permission: ""
     mentions: true
-    # Example PlaceholderAPI value: {papi_luckperms_prefix}
-    format: "{papi_luckperms_prefix}<gray><player></gray> <dark_gray>»</dark_gray> <white><message></white>"
+    format: "{papi_luckperms_prefix} <gray><player></gray> <dark_gray>»</dark_gray> <white><message></white>"
+
   local:
     scope: radius
     radius: 100
     permission: "veloutils.chat.local"
     mentions: true
     format: "<dark_gray>[Local]</dark_gray> <gray><player></gray> <dark_gray>»</dark_gray> <white><message></white>"
+
   global:
     scope: network
     permission: "veloutils.chat.global.use"
     mentions: true
     format: "<aqua>[Global]</aqua> <gray><player></gray> <dark_gray>»</dark_gray> <white><message></white>"
+
 mentions:
   format: "<yellow><bold>@<player></bold></yellow>"
   sound: "block.note_block.pling"
+
 urls:
   enabled: true
+
 cooldown: 1s
 duplicate-window: 10s
 maximum-length: 256
+
 caps:
   minimum-letters: 8
   maximum-ratio: 0.75
+
 filters:
   words: []
   regex: []

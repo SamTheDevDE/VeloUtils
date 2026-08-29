@@ -16,6 +16,7 @@ dependencies {
     implementation("org.spongepowered:configurate-yaml:4.2.0")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")
     testImplementation("net.kyori:adventure-text-minimessage:4.24.0")
+    testImplementation("net.kyori:adventure-text-serializer-plain:4.24.0")
 }
 
 tasks.processResources {
