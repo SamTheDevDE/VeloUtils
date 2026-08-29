@@ -32,11 +32,11 @@ What each file is for:
 
 | File | Change this file when you want to |
 |---|---|
-| `config.yml` | Enable modules, secure the bridge, customize MOTD, or set server access rules |
+| `config.yml` | Enable modules, secure the bridge, customize MOTD, or set server access/metadata |
 | `messages.yml` | Change messages, colors, prefixes, and network-global chat format |
 | `commands.yml` | Add or change custom transfer and information commands |
 | `moderation.yml` | Configure punishments and the private IP-hash key |
-| `integrations.yml` | Configure Discord webhooks and other optional integrations |
+| `integrations.yml` | Configure TAB, Discord webhooks, and other optional integrations |
 | `alerts.yml` | Configure rotating proxy announcements |
 | `storage.yml` | Choose SQLite, MySQL/MariaDB, or PostgreSQL |
 
@@ -67,8 +67,7 @@ plugins/VeloUtils/
     ├── afk.yml                 # created only when AFK is first enabled
     ├── announcements.yml       # created only when local announcements are first enabled
     ├── chat.yml                # local formatting and chat policy
-    ├── messaging.yml           # private-message presentation
-    └── presentation.yml        # TAB, scoreboard, nametag, and bossbar presentation
+    └── messaging.yml           # private-message presentation
 ```
 
 Do not edit `messaging-state.yml`. VeloUtils uses it to remember ignored players on standalone Paper/Folia servers.
@@ -81,7 +80,6 @@ modules:
   announcements: false
   chat: false
   messaging: false
-  presentation: false
   moderation: false
   placeholders: true
   staff-chat: true
@@ -94,20 +92,29 @@ Local announcements can play in order or in a non-repeating random order. Their 
 
 When using Velocity, set `server-id` on every backend to its exact name from Velocity's server list. For example, a backend registered as `survival` must use `server-id: survival`. Standalone servers can leave it blank.
 
-Presentation designs can be limited by server, world, group, or permission. Separate animation frames with `||`. PlaceholderAPI placeholders use the form `{papi_<expansion>_<identifier>}`, for example `{papi_luckperms_prefix}`.
-
 `modules/chat.yml` contains server-wide, nearby/radius, and network-wide channels. Players select one with `/channel`. To use network-wide chat, enable `chat` on both Velocity and the backend. Change the network chat appearance with `chat.global-format` in the proxy's `messages.yml`.
 
 Cross-server private messaging requires `messaging: true` on the proxy and every participating backend. Local `/msg` still works without Velocity.
 
-`modules/presentation.yml` lets you switch TAB, scoreboards, nametags, and bossbars on or off separately. Headers and footers can use YAML lists for multiple lines. Lower `sort-order` numbers appear first. A scoreboard can contain up to 15 lines.
-
-For example, after enabling the main `presentation` module, turn on its scoreboard with:
+VeloUtils does not configure or render TAB, scoreboards, nametags, or layouts. Install TAB on Velocity and enable only the optional data hook in `integrations.yml`:
 
 ```yaml
-scoreboard:
+tab:
   enabled: true
+  placeholders:
+    enabled: true
 ```
+
+Optional server display names and maximums are configured in the proxy `config.yml`:
+
+```yaml
+servers:
+  lobby:
+    display-name: "<gradient:#7c3aed:#a855f7>Lobby</gradient>"
+    max-players: 200
+```
+
+See the [TAB integration guide](tab-integration.md) for all placeholders and the TAB-side configuration example. VeloUtils never edits TAB's files.
 
 Optional pre-maintenance transfer is configured on Velocity:
 
@@ -184,7 +191,7 @@ chat:
 
 With the default settings, `<red>Hello</red>` remains literal unless the sender has the corresponding permission. Colors include named and hex colors; decorations include bold, italic, underline, and strikethrough; gradients are separate. `full` means all of these safe presentation groups. It deliberately does not allow click, hover, insertion, font, selector, score, NBT, keybind, translatable, URL/action, newline, or reset tags. Unsupported tags stay literal, and malformed player input falls back to literal text. These permissions affect only player-entered global/staff chat, never the administrator's templates.
 
-Words inside braces are placeholders, such as `{player}`, `{server}`, or `{veloutils_network_online}`. Keep a placeholder exactly as written. PlaceholderAPI values start with `papi_`, for example `{papi_luckperms_prefix}`.
+Words inside braces are VeloUtils template placeholders, such as `{player}`, `{server}`, or `{veloutils_network_online}`. Keep a placeholder exactly as written. PlaceholderAPI values on the Paper bridge start with `papi_`, for example `{papi_luckperms_prefix}`. TAB's API placeholders instead use percent syntax such as `%veloutils_server%`.
 
 If a message fails validation, restore the original line from the bundled resource and make smaller changes until the error is clear.
 

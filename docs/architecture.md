@@ -73,8 +73,7 @@ Protocol v4 adds target-backend private-message delivery acknowledgements and pe
 | JDBC and file I/O | Dedicated coroutine/IO dispatcher |
 | Folia entity work | Entity scheduler |
 | Folia global state | Global region scheduler |
-| Scoreboard objectives and per-viewer teams | Global region scheduler |
-| Scoreboard assignment, chat radius/location, mentions/sounds | Entity scheduler |
+| Chat radius/location and mentions/sounds | Entity scheduler |
 | Backend blocking work | Async scheduler |
 | Velocity connection futures | Suspended without blocking `join()` |
 

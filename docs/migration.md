@@ -20,12 +20,27 @@ Additive settings do not force a YAML rewrite or config-version bump. VeloUtils 
 
 Player-entered MiniMessage formatting is safe-by-default after this update. The new `chat.player-formatting` settings are supplied by the bundled `config.yml` when absent, so existing installations do not need an automatic rewrite. Grant the new `veloutils.chat.format.colors`, `.decorations`, `.gradients`, or `.full` permissions only to the groups that should use those presentation formats. The `full` permission still excludes interactive and data-driven tags.
 
+## Built-in presentation removal
+
+The Paper/Folia `presentation` module and `modules/presentation.yml` are no longer used. Install TAB on Velocity and move header/footer, player-list formatting, sorting, nametag, scoreboard, bossbar, and layout choices into TAB's configuration. VeloUtils never converts or edits that file automatically.
+
+Add the optional hook to the proxy `integrations.yml` and restart:
+
+```yaml
+tab:
+  enabled: true
+  placeholders:
+    enabled: true
+```
+
+If an old backend still has `modules.presentation: true` or `modules/presentation.yml`, VeloUtils prints one focused migration warning during startup. Remove those old settings/file after transferring any visual choices you want to keep. See the [TAB integration guide](tab-integration.md) for placeholder mappings and an example.
+
 ## Important owner changes
 
 - The backend file is now `VeloUtils-Paper-<version>.jar` and works on both Paper and Folia.
 - Backend data now belongs in `plugins/VeloUtils`, not `plugins/VeloUtilsBridge`.
 - Move an old bridge `config.yml` into the new directory before first startup.
-- AFK, local announcements, chat, messaging, presentation, and backend moderation default to off when their module setting is missing.
+- AFK, local announcements, chat, messaging, and backend moderation default to off when their module setting is missing.
 - Each backend's `server-id` should match its exact registered Velocity name.
 - Network mute enforcement needs moderation enabled on Velocity and every backend.
 - Protocol v4 adds private-message delivery confirmation and network-wide persistent ignores. Older proxy/backend pairs cannot use those additions.
@@ -34,15 +49,13 @@ Database migration 3 creates the table used for network-wide ignores. Existing s
 
 ## Only for addon developers
 
-The snapshot API now exposes `ModuleService`, placeholders, AFK, presentation, and messaging. Feature services are nullable so standalone Paper/Folia and disabled modules are represented without throwing placeholder implementations. Addon source must null-check optional services and should check `api.modules.state(id)` before mutation. `MaintenanceUpdate.Enable` also carries an optional scheduled end. These are pre-`1.0.0` source/binary changes and are not presented as stable compatibility.
-
-`PresentationService` now includes temporary bossbar registration and `VeloUtilsApi.chat` exposes local channel registration. Recompile snapshot-era addons against the updated API.
+The snapshot API exposes `ModuleService`, placeholders, AFK, chat, and messaging. Feature services are nullable so standalone Paper/Folia and disabled modules are represented without throwing placeholder implementations. The removed `PresentationService`, `PresentationSnapshot`, and temporary bossbar models were pre-`1.0.0` APIs; snapshot-era addons using them must migrate visual behavior to TAB and recompile. `MaintenanceUpdate.Enable` also carries an optional scheduled end.
 
 Server owners who do not develop addons can skip this section.
 
 ## Removed or renamed settings
 
-`maintenance.yml` was removed because it contained no settings that the plugin actually used. Maintenance state remains in storage. Presentation uses `messages.yml`, and server fallbacks use `config.yml`.
+`maintenance.yml` was removed because it contained no settings that the plugin actually used. Maintenance state remains in storage, and server fallbacks use `config.yml`.
 
 The following old settings were removed because they did not work or are no longer needed:
 

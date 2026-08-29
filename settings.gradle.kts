@@ -14,6 +14,10 @@ dependencyResolutionManagement {
             name = "PlaceholderAPI"
             content { includeGroup("me.clip") }
         }
+        maven("https://jitpack.io") {
+            name = "JitPack"
+            content { includeGroup("com.github.NEZNAMY") }
+        }
     }
 }
 

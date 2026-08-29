@@ -22,6 +22,7 @@ This map records what happened to features from before the modular rewrite. "Ret
 | Maintenance/report/staff SQL | Shared storage plus domain repositories | Rewritten with pooling, prepared statements, migrations, indexes, transactions, and async dispatch |
 | Proxy/backend plugin messages | `veloutils-protocol` | Replaced by size-limited versioned JSON, HMAC, timestamps, replay protection, and matched requests/responses |
 | PlaceholderAPI integration | Placeholder service plus Paper expansion | Rewritten and retained. Cached values replace per-render network requests |
+| Built-in tablist/presentation | TAB integration | Removed. TAB owns rendering; VeloUtils exposes network and maintenance placeholders through TAB's public API |
 | Discord notifications | Discord integration | Rewritten, optional, asynchronous, limited to a few retries, and hidden from logs |
 | Limbo fallback | Limbo integration | Retained as an optional adapter to an already registered server |
 | Update checks | Modrinth integration | Replaced with an asynchronous semantic-version provider |
@@ -35,4 +36,4 @@ This map records what happened to features from before the modular rewrite. "Ret
 | Unversioned channels and Java serialization | None | Removed for security and compatibility |
 | Tebex/economy-like integration placeholders | Separate addons if ever justified | Removed from core |
 
-Chat, private messaging, and presentation did not have working features to migrate. They now have new opt-in implementations. The [implementation status](implementation-status.md) clearly lists what they support and what they do not.
+Chat and private messaging did not have working features to migrate and now have opt-in implementations. Presentation is intentionally delegated to TAB. The [implementation status](implementation-status.md) clearly lists what is supported.

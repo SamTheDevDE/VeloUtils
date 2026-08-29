@@ -34,6 +34,9 @@ class ConfigRepositoryTest {
         assertFalse(snapshot.protocol.requireAuthentication)
         assertTrue(snapshot.playerFormatting.enabled)
         assertFalse(snapshot.playerFormatting.defaults.colors)
+        assertTrue(snapshot.tab.enabled)
+        assertTrue(snapshot.tab.placeholdersEnabled)
+        assertTrue(snapshot.serverMetadata.isEmpty())
         assertTrue(snapshot.serverAccessRules.isEmpty())
         assertEquals("keep-me", reloaded.node("custom-administrator-field").getString())
         assertEquals(1, reloaded.node("config-version").getInt())
@@ -101,6 +104,36 @@ class ConfigRepositoryTest {
 
         val failure = assertFailsWith<ConfigValidationException> { ConfigRepository(directory).load() }
         assertTrue(failure.message.orEmpty().contains("official HTTPS Discord webhook"))
+    }
+
+    @Test
+    fun `server metadata and TAB integration settings are loaded`() {
+        val directory = Files.createTempDirectory("veloutils-tab-config")
+        directory.resolve("config.yml").writeText(
+            """
+            config-version: 1
+            servers:
+              lobby:
+                display-name: "<aqua>Lobby</aqua>"
+                max-players: 200
+            """.trimIndent(),
+        )
+        directory.resolve("integrations.yml").writeText(
+            """
+            config-version: 1
+            tab:
+              enabled: false
+              placeholders:
+                enabled: false
+            """.trimIndent(),
+        )
+
+        val snapshot = ConfigRepository(directory).load()
+
+        assertFalse(snapshot.tab.enabled)
+        assertFalse(snapshot.tab.placeholdersEnabled)
+        assertEquals("<aqua>Lobby</aqua>", snapshot.serverMetadata.getValue("lobby").displayName)
+        assertEquals(200, snapshot.serverMetadata.getValue("lobby").maximumPlayers)
     }
 
     @Test

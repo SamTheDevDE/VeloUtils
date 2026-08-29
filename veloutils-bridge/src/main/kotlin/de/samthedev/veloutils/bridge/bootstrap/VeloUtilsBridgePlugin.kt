@@ -18,8 +18,6 @@ import de.samthedev.veloutils.bridge.announcement.AnnouncementConfig
 import de.samthedev.veloutils.bridge.announcement.AnnouncementModule
 import de.samthedev.veloutils.bridge.chat.LocalChatConfig
 import de.samthedev.veloutils.bridge.chat.LocalChatModule
-import de.samthedev.veloutils.bridge.presentation.PresentationConfig
-import de.samthedev.veloutils.bridge.presentation.PresentationModule
 import de.samthedev.veloutils.bridge.messaging.LocalMessagingModule
 import de.samthedev.veloutils.bridge.messaging.loadMessagingConfig
 import de.samthedev.veloutils.core.module.ModuleDescriptor
@@ -47,7 +45,6 @@ public class VeloUtilsBridgePlugin : JavaPlugin(), Listener {
     private var afkService: de.samthedev.veloutils.api.AfkService? = null
     private var chatService: de.samthedev.veloutils.api.ChatService? = null
     private var muteEnforcement: MuteEnforcement? = null
-    private var presentationService: de.samthedev.veloutils.api.PresentationService? = null
     private var messagingService: de.samthedev.veloutils.api.MessagingService? = null
     private var localMessagingModule: LocalMessagingModule? = null
     private var legacyPermissionsEnabled: Boolean = true
@@ -101,6 +98,14 @@ public class VeloUtilsBridgePlugin : JavaPlugin(), Listener {
         val placeholdersEnabled = root.node("modules", "placeholders").getBoolean(true)
         val staffChatEnabled = root.node("modules", "staff-chat").getBoolean(true)
         val networkAlertsEnabled = root.node("modules", "network-alerts").getBoolean(true)
+        if (root.node("modules", "presentation").getBoolean(false) ||
+            java.nio.file.Files.exists(dataPath.resolve("modules/presentation.yml"))
+        ) {
+            logger.warning(
+                "The built-in VeloUtils presentation/tablist module has been removed. " +
+                    "Install TAB on Velocity and use the optional VeloUtils TAB integration instead.",
+            )
+        }
 
         schedulers = PlatformSchedulers(this)
         placeholders = if (placeholdersEnabled) NetworkPlaceholderCache() else null
@@ -140,7 +145,6 @@ public class VeloUtilsBridgePlugin : JavaPlugin(), Listener {
         val announcements = ModuleId("announcements")
         val chat = ModuleId("chat")
         val moderation = ModuleId("moderation")
-        val presentation = ModuleId("presentation")
         val messaging = ModuleId("messaging")
         moduleRuntime = ModuleRuntime(
             mapOf(
@@ -173,12 +177,6 @@ public class VeloUtilsBridgePlugin : JavaPlugin(), Listener {
                         }
                     }
                 },
-                ModuleDescriptor(presentation) to ModuleFactory {
-                    PresentationModule(this, schedulers, serverId, PresentationConfig.load(this, schedulers), placeholderFacade) {
-                        afkService as? de.samthedev.veloutils.bridge.afk.AfkStateService
-                    }
-                        .also { presentationService = it }
-                },
                 ModuleDescriptor(messaging) to ModuleFactory {
                     LocalMessagingModule(
                         this,
@@ -199,7 +197,6 @@ public class VeloUtilsBridgePlugin : JavaPlugin(), Listener {
                 if (root.node("modules", "announcements").getBoolean(false)) add(announcements)
                 if (root.node("modules", "chat").getBoolean(false)) add(chat)
                 if (moderationEnabled) add(moderation)
-                if (root.node("modules", "presentation").getBoolean(false)) add(presentation)
                 if (root.node("modules", "messaging").getBoolean(false)) add(messaging)
             }
             runtime.start(enabled)
@@ -210,7 +207,7 @@ public class VeloUtilsBridgePlugin : JavaPlugin(), Listener {
             }
             server.servicesManager.register(
                 de.samthedev.veloutils.api.VeloUtilsApi::class.java,
-                PaperApiServices(apiEnabled, afkService, chatService, placeholderFacade, presentationService, messagingService),
+                PaperApiServices(apiEnabled, afkService, chatService, placeholderFacade, messagingService),
                 this,
                 ServicePriority.Normal,
             )
@@ -290,7 +287,6 @@ public class VeloUtilsBridgePlugin : JavaPlugin(), Listener {
         afkService = null
         chatService = null
         muteEnforcement = null
-        presentationService = null
         messagingService = null
         localMessagingModule = null
         placeholderRegistration?.close()

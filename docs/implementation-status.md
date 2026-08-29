@@ -20,12 +20,11 @@ The first table shows features that are available now. The second explains limit
 | Staff tools | Online staff list, activity messages, and tracked total/server time |
 | Proxy/backend connection | Health checks, network alerts, staff chat, placeholders, mute state, and optional remote commands |
 | Storage | SQLite, MySQL/MariaDB, and PostgreSQL with automatic database upgrades |
-| Integrations | Discord webhooks, Limbo fallback, and Modrinth update checks |
+| Integrations | TAB network placeholders, Discord webhooks, Limbo fallback, and Modrinth update checks |
 | Announcements | Timed announcements in order or non-repeating random order |
-| AFK | Manual and automatic AFK, AFK duration, optional kick, and presentation indicators |
+| AFK | Manual and automatic AFK, AFK duration, optional kick, and placeholder state |
 | Private messages | Local and cross-server `/msg`, delivery confirmation, reply, persistent ignores, ignore list, and social spy |
 | Chat | Server, nearby/radius, and network channels, mentions, sounds, safe links, cooldowns, mute/clear, and spam controls |
-| Presentation | Animated TAB headers/footers, ordering, scoreboards, nametags, AFK indicators, and bossbars |
 
 ## Important limits
 
@@ -41,14 +40,14 @@ The first table shows features that are available now. The second explains limit
 | Custom chat channels | Addons can add local channels. New network-wide channel types need matching proxy support |
 | Sample-player tooltip | MiniMessage is reduced to legacy text formatting; vanilla tooltips cannot provide component hover/click events, and client versions may render RGB/long entries differently |
 | Social spy | Each staff member must enable it again after reconnecting or restarting |
-| TAB layouts | Normal multiline layouts and sorting work, but VeloUtils does not create fake player entries or packet-based fixed grids |
-| Scoreboards | Use only one plugin to manage a player's scoreboard, otherwise the plugins can replace each other's display |
+| TAB | TAB must be installed on Velocity. VeloUtils provides data placeholders only and never edits or owns TAB layouts |
 
 ## Not provided
 
 - Transparent chat mode (use `/sc` and `/ac`)
 - Automatic import from the unrelated VelocityUtils plugin
 - Synthetic/fake-player TAB slots
+- Built-in tablist, scoreboard, nametag, or bossbar rendering
 - Proxy-synchronized AFK state
 
 These features are left out unless a safe, supported implementation becomes available. They are listed here so you do not spend time looking for settings that do not exist.

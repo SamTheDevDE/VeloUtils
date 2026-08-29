@@ -47,7 +47,6 @@ class BundledMiniMessageDefaultsTest {
             "modules/announcements.yml",
             "modules/chat.yml",
             "modules/messaging.yml",
-            "modules/presentation.yml",
         )
     }
 }

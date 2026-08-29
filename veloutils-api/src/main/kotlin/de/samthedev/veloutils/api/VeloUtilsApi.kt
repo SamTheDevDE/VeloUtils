@@ -17,7 +17,6 @@ public interface VeloUtilsApi {
     public val moderation: ModerationService?
     public val afk: AfkService? get() = null
     public val chat: ChatService? get() = null
-    public val presentation: PresentationService? get() = null
     public val messaging: MessagingService? get() = null
     /** Present once a platform has activated shared placeholder rendering. */
     public val placeholders: PlaceholderService? get() = null
@@ -56,41 +55,6 @@ public data class AfkStatus(
     val afk: Boolean,
     val since: Instant?,
     val lastActivity: Instant,
-)
-
-public interface PresentationService {
-    public fun snapshot(): PresentationSnapshot
-    public fun refresh(playerId: UUID)
-    public fun showBossBar(request: TemporaryBossBarRequest): AutoCloseable
-}
-
-public enum class PresentationBossBarColor { PINK, BLUE, RED, GREEN, YELLOW, PURPLE, WHITE }
-public enum class PresentationBossBarOverlay { PROGRESS, NOTCHED_6, NOTCHED_10, NOTCHED_12, NOTCHED_20 }
-
-public data class TemporaryBossBarRequest(
-    val id: String,
-    val text: String,
-    val startsAt: Instant = Instant.now(),
-    val endsAt: Instant,
-    val playerIds: Set<UUID> = emptySet(),
-    val priority: Int = 0,
-    val progress: Float = 1.0f,
-    val color: PresentationBossBarColor = PresentationBossBarColor.PURPLE,
-    val overlay: PresentationBossBarOverlay = PresentationBossBarOverlay.PROGRESS,
-) {
-    init {
-        require(id.matches(Regex("[a-zA-Z0-9_-]{1,64}"))) { "Invalid bossbar id" }
-        require(text.isNotBlank()) { "Bossbar text must not be blank" }
-        require(endsAt.isAfter(startsAt)) { "Bossbar end must follow its start" }
-        require(progress in 0.0f..1.0f) { "Bossbar progress must be between 0 and 1" }
-    }
-}
-
-public data class PresentationSnapshot(
-    val tab: Boolean,
-    val bossBars: Boolean,
-    val scoreboards: Boolean,
-    val nametags: Boolean,
 )
 
 public interface MessagingService {

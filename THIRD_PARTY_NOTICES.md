@@ -23,8 +23,9 @@ VeloUtils is distributed under GPL-3.0-only. Dependencies remain subject to thei
 | Paper API | Backend API | MIT |
 | Adventure | Text API | MIT |
 | PlaceholderAPI | Optional placeholders integration | GPL-3.0 |
+| TAB API | Optional Velocity placeholders integration | Apache-2.0 |
 | Gradle Wrapper | Build bootstrap | Apache-2.0 |
 
-Velocity, Paper, Folia, Minecraft, Discord, Tebex, LuckPerms, and PlaceholderAPI are names or marks of their respective owners. VeloUtils is not affiliated with Mojang Studios or Microsoft.
+Velocity, Paper, Folia, Minecraft, Discord, Tebex, LuckPerms, PlaceholderAPI, and TAB are names or marks of their respective owners. VeloUtils is not affiliated with Mojang Studios or Microsoft.
 
 Dependency versions are declared in the Gradle build files and should be reviewed whenever this notice or the shaded artifact contents change.

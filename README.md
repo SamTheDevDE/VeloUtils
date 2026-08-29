@@ -4,7 +4,7 @@ Modern utilities for Minecraft servers and networks.
 
 **Modular by design. Enable what you need.**
 
-VeloUtils is a modular utility plugin for Velocity, Paper, and Folia servers. It provides network tools, maintenance, moderation, chat, private messages, AFK, announcements, and presentation features such as TAB, scoreboards, nametags, and bossbars.
+VeloUtils is a modular utility plugin for Velocity, Paper, and Folia servers. It provides network tools, maintenance, moderation, chat, private messages, AFK, announcements, and optional data integration with TAB.
 
 You choose which features are enabled. Disabled features do not register listeners, start tasks, or create their own runtime services.
 
@@ -19,7 +19,7 @@ You choose which features are enabled. Disabled features do not register listene
 - Customize rotating MOTDs, server-list icons, player samples, and maintenance messages
 - Use server, nearby, or network chat with mentions, links, cooldowns, and spam controls
 - Send local or cross-server private messages with reply, ignore, and social spy
-- Configure AFK detection, local announcements, TAB, scoreboards, nametags, and bossbars
+- Configure AFK detection and local announcements, and expose network data to TAB
 - Send selected events to Discord and use an optional Limbo fallback
 - Store data in SQLite, MySQL/MariaDB, or PostgreSQL
 - Use the same backend JAR on Paper and Folia
@@ -32,6 +32,7 @@ You choose which features are enabled. Disabled features do not register listene
 | Proxy | Velocity 4.1 or newer in the 4.x line |
 | Backend server | Paper or Folia 26.2 |
 | PlaceholderAPI | Optional |
+| TAB | Optional; install on Velocity to use VeloUtils TAB placeholders |
 
 ## Which JAR do I install?
 
@@ -59,6 +60,21 @@ The Paper JAR supports both Paper and Folia. Start with the plain-language [inst
 4. Restart the backend.
 
 The backend plugin is optional. Proxy-only features continue to work without it, and the Paper/Folia plugin also works without Velocity or PlaceholderAPI.
+
+## TAB integration
+
+VeloUtils no longer renders a tablist itself. TAB by NEZNAMY owns headers, footers, player-list formatting, sorting, nametags, scoreboards, and layouts; VeloUtils optionally supplies cheap network, backend, maintenance, player-count, ping, and uptime placeholders through TAB's public API.
+
+Enable the hook in the Velocity `integrations.yml`:
+
+```yaml
+tab:
+  enabled: true
+  placeholders:
+    enabled: true
+```
+
+TAB remains optional. If it is missing, VeloUtils logs one informational message and continues normally. See the [TAB integration guide](docs/tab-integration.md) for the complete placeholder table, server display metadata, status semantics, and a working TAB configuration example.
 
 ### If you use Velocity with backends
 

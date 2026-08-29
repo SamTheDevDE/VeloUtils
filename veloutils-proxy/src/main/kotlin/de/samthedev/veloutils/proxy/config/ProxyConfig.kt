@@ -95,6 +95,16 @@ public data class LimboConfig(
     val server: String,
 )
 
+public data class TabIntegrationConfig(
+    val enabled: Boolean,
+    val placeholdersEnabled: Boolean,
+)
+
+public data class ServerMetadata(
+    val displayName: String?,
+    val maximumPlayers: Int,
+)
+
 public data class UpdateConfig(
     val enabled: Boolean,
     val provider: String,
@@ -119,6 +129,8 @@ public data class ProxyConfig(
     val playerFormatting: PlayerFormattingConfig,
     val discord: DiscordConfig,
     val limbo: LimboConfig,
+    val tab: TabIntegrationConfig,
+    val serverMetadata: Map<String, ServerMetadata>,
     val updates: UpdateConfig,
     val alerts: AlertConfig,
     val ui: UiConfig,

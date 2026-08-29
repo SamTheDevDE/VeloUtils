@@ -12,7 +12,7 @@ Changing a module setting requires a restart. When a module is disabled, VeloUti
 - Local server features are enabled in the Paper/Folia `config.yml`.
 - Network chat and cross-server private messages need the matching module enabled on both sides.
 
-Paper/Folia features such as AFK, local chat, announcements, and presentation still work without Velocity.
+Paper/Folia features such as AFK, local chat, and announcements still work without Velocity.
 
 ## Common choices
 
@@ -22,7 +22,7 @@ Paper/Folia features such as AFK, local chat, announcements, and presentation st
 | Network-wide chat | `chat` on Velocity and every participating backend |
 | Cross-server private messages | `messaging` on Velocity and every participating backend |
 | Network mutes | `moderation` on Velocity and every backend, plus bridge authentication |
-| TAB, scoreboard, nametags, or bossbars | `presentation` on each backend where they should appear |
+| TAB, scoreboards, nametags, or layouts | Install TAB on Velocity; optionally enable VeloUtils's TAB integration |
 | Standalone server chat and AFK | `chat` and `afk` on Paper/Folia. Velocity is not required |
 
 ## Velocity modules
@@ -52,13 +52,14 @@ If you only want basic proxy utilities, the default Velocity modules are a sensi
 | `announcements` | Timed local announcements in order or random order | Off |
 | `chat` | Server, radius, and network channels, mentions, links, and spam controls | Off |
 | `messaging` | Local/cross-server private messages, reply, ignore, and social spy | Off |
-| `presentation` | TAB headers, player-list names, scoreboards, nametags, and bossbars | Off |
 | `moderation` | Enforces Velocity mute state on that backend | Off |
 | `placeholders` | VeloUtils placeholders and optional PlaceholderAPI support | On |
 | `staff-chat` | Lets backend players use `/sc` and `/ac` | On |
 | `network-alerts` | Lets authorized users send `/vualert` messages | On |
 
 An enabled feature creates its own file under `plugins/VeloUtils/modules/` when needed. To enforce network mutes, enable `moderation` on Velocity and every backend, then enable protocol authentication.
+
+TAB integration is an optional Velocity integration rather than a module. It is configured in `integrations.yml`; see the [TAB integration guide](tab-integration.md). VeloUtils does not start a tablist rendering task on any backend.
 
 ## What "disabled" means
 

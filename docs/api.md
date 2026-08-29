@@ -30,7 +30,6 @@ Unknown IDs return `UNAVAILABLE`. Known but unselected IDs return `DISABLED`. `a
 | `placeholders` | Namespaced plain-text value providers | Both |
 | `afk` | Local AFK state | Paper/Folia |
 | `chat` | Local channel selection and registration | Paper/Folia |
-| `presentation` | Refresh and temporary bossbar registration | Paper/Folia |
 | `messaging` | Synchronous local UUID delivery | Paper/Folia |
 
 Optional properties are `null` when their owning module or platform capability is unavailable. Do not retain implementation casts or assume a service exists because its configuration file exists.
@@ -62,24 +61,7 @@ if (afk != null) {
     val status = afk.snapshot(player.uniqueId)
 }
 
-api.presentation?.refresh(player.uniqueId)
 val delivery = api.messaging?.send(sender.uniqueId, target.uniqueId, "Hello")
-```
-
-Temporary/scheduled bossbars use immutable API models and return an owned registration:
-
-```kotlin
-val registration = api.presentation?.showBossBar(
-    TemporaryBossBarRequest(
-        id = "event-countdown",
-        text = "<yellow>Event starts soon, {player}</yellow>",
-        startsAt = Instant.now().plusSeconds(30),
-        endsAt = Instant.now().plusSeconds(90),
-        priority = 100,
-    ),
-)
-// Close early when the owning addon disables.
-registration?.close()
 ```
 
 `ChatService.register` publishes local addon channels without exposing bridge internals. Close registrations when the addon shuts down. Network channels are not accepted here because they also need matching proxy permissions and formatting rules.
@@ -90,9 +72,9 @@ Declare `depend: [VeloUtils]` or `softdepend: [VeloUtils]` in `plugin.yml`. The 
 
 `PlaceholderService` is the stable provider contract. Providers return plain text under a namespace. VeloUtils escapes dynamic values before MiniMessage renders them. Registrations return `AutoCloseable` and should be closed when the addon disables.
 
-The shared placeholder service and its size-limited, expiring cache live in `veloutils-core` and work on both platforms. Registered providers resolve under their namespace. PlaceholderAPI exposes `%veloutils_server%`, `%veloutils_network_online%`, `%veloutils_afk%`, `%veloutils_maintenance%`, and documented old aliases on Paper/Folia. Presentation templates can use installed PlaceholderAPI expansions as escaped `{papi_<expansion>_<identifier>}` values.
+The shared placeholder service and its size-limited, expiring cache live in `veloutils-core` and work on both platforms. Registered providers resolve under their namespace. PlaceholderAPI exposes `%veloutils_server%`, `%veloutils_network_online%`, `%veloutils_afk%`, `%veloutils_maintenance%`, and documented old aliases on Paper/Folia. The separate Velocity [TAB integration](tab-integration.md) registers its documented percent-delimited placeholders directly through TAB's public API.
 
-`MessagingService.send` handles immediate local UUID delivery. Command-driven cross-server delivery uses protocol v4 acknowledgements and saved proxy preferences. `PresentationService.refresh` uses the platform scheduler, so callers do not need to own the player's region.
+`MessagingService.send` handles immediate local UUID delivery. Command-driven cross-server delivery uses protocol v4 acknowledgements and saved proxy preferences.
 
 ## Compatibility
 

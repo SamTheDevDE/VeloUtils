@@ -17,12 +17,13 @@ This matrix records what happened to features from the project before the rewrit
 | **Deprecate** | Support only for migration |
 | **Remove** | Exclude for a documented technical reason |
 
-## Network and presentation
+## Network and integrations
 
 | Reference behavior | Decision | VeloUtils direction |
 |---|---|---|
 | `/find`, `/goto`, `/vlist` | Redesign | Shared UI, explicit console behavior, actions, pagination, tab completion |
-| Alerts and rich presentation | Redesign | Validated broadcasts and authenticated backend alerts |
+| Alerts | Redesign | Validated broadcasts and authenticated backend alerts |
+| Built-in tablist/presentation | Replace | TAB owns visuals; VeloUtils registers optional network placeholders |
 | Rotating alerts | Keep | Sequential or non-repeating random schedules with clear limits |
 | MOTD and favicon | Redesign | Cached rotation, virtual hosts, maintenance branding |
 | Move commands | Redesign | Aliases, permissions, fallbacks, availability, cooldowns |

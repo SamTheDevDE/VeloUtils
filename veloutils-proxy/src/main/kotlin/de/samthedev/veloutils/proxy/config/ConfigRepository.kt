@@ -179,6 +179,16 @@ public class ConfigRepository(private val dataDirectory: Path) {
                 enabled = integrations.node("limbo", "enabled").getBoolean(false),
                 server = integrations.node("limbo", "server").getString("limbo").lowercase(),
             ),
+            tab = TabIntegrationConfig(
+                enabled = integrations.node("tab", "enabled").getBoolean(true),
+                placeholdersEnabled = integrations.node("tab", "placeholders", "enabled").getBoolean(true),
+            ),
+            serverMetadata = config.node("servers").childrenMap().map { (key, node) ->
+                key.toString().lowercase() to ServerMetadata(
+                    displayName = node.node("display-name").getString()?.trim()?.takeIf(String::isNotEmpty),
+                    maximumPlayers = node.node("max-players").getInt(0),
+                )
+            }.toMap(),
             updates = UpdateConfig(
                 enabled = config.node("update-checker", "enabled").getBoolean(true),
                 provider = config.node("update-checker", "provider").getString("modrinth").lowercase(),
@@ -264,6 +274,19 @@ public class ConfigRepository(private val dataDirectory: Path) {
             }
             if (config.limbo.enabled && !Regex("[a-z0-9_-]{1,64}").matches(config.limbo.server)) {
                 add("integrations.yml: limbo.server is invalid")
+            }
+            config.serverMetadata.forEach { (server, metadata) ->
+                if (!Regex("[a-z0-9._-]{1,64}").matches(server)) {
+                    add("config.yml: servers key '$server' is not a valid Velocity server name")
+                }
+                if (metadata.maximumPlayers !in 0..1_000_000) {
+                    add("config.yml: servers.$server.max-players must be between 0 and 1000000")
+                }
+                metadata.displayName?.let { displayName ->
+                    runCatching { ConfiguredMiniMessage.deserialize(displayName) }.exceptionOrNull()?.let { failure ->
+                        add("config.yml: servers.$server.display-name is invalid MiniMessage: ${failure.message}")
+                    }
+                }
             }
             if (config.updates.provider != "modrinth") add("update-checker.provider must be modrinth")
             if (!Regex("[A-Za-z0-9_-]{1,64}").matches(config.updates.projectId)) add("update-checker.project-id is invalid")

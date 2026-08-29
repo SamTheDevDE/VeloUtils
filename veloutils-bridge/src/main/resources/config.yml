@@ -9,7 +9,6 @@ modules:
   # Local announcements are separate from proxy-wide announcements.
   announcements: false
   chat: false
-  presentation: false
   messaging: false
   # Enable together with authenticated proxy moderation for mute enforcement.
   moderation: false

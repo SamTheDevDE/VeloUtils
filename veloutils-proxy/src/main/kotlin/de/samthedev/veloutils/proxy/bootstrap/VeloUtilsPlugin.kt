@@ -71,6 +71,11 @@ import de.samthedev.veloutils.proxy.integration.ModrinthUpdateProvider
 import de.samthedev.veloutils.proxy.integration.NetworkEventSink
 import de.samthedev.veloutils.proxy.integration.NoopNetworkEventSink
 import de.samthedev.veloutils.proxy.integration.RotatingAlertService
+import de.samthedev.veloutils.proxy.integration.tab.TabIntegration
+import de.samthedev.veloutils.proxy.integration.tab.TabIntegrationDecision
+import de.samthedev.veloutils.proxy.integration.tab.TabPlaceholderProvider
+import de.samthedev.veloutils.proxy.integration.tab.VelocityTabDataSource
+import de.samthedev.veloutils.proxy.integration.tab.tabIntegrationDecision
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -78,6 +83,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import org.slf4j.Logger
 import java.nio.file.Path
+import java.time.Instant
 import java.util.concurrent.atomic.AtomicReference
 import java.util.concurrent.CopyOnWriteArrayList
 
@@ -97,6 +103,7 @@ public class VeloUtilsPlugin @Inject constructor(
     private var protocolGateway: ProxyProtocolGateway? = null
     private val publishedApi = AtomicReference<VeloUtilsApi?>()
     private val ownedResources = CopyOnWriteArrayList<AutoCloseable>()
+    private val startedAt = Instant.now()
 
     override val network: NetworkService get() = checkNotNull(api().network)
     override val modules: ModuleService get() = api().modules
@@ -326,6 +333,31 @@ public class VeloUtilsPlugin @Inject constructor(
                         }
                     }
                 }
+                when (tabIntegrationDecision(snapshot.tab, proxy.pluginManager.getPlugin("tab").isPresent)) {
+                    TabIntegrationDecision.DISABLED -> Unit
+                    TabIntegrationDecision.UNAVAILABLE -> logger.info(
+                        "[VeloUtils] TAB is not installed; optional TAB placeholder integration was skipped.",
+                    )
+                    TabIntegrationDecision.ENABLED -> runCatching {
+                        val dataSource = VelocityTabDataSource(proxy, bridgeStatuses) { maintenanceService?.snapshot() }
+                        TabIntegration(
+                            TabPlaceholderProvider(dataSource, snapshot.serverMetadata, startedAt),
+                            dataSource.backendNames(),
+                            logger,
+                        ).also { integration ->
+                            integration.start()
+                            ownedResources += integration
+                        }
+                    }.onSuccess {
+                        logger.info("[VeloUtils] TAB integration enabled with VeloUtils placeholders.")
+                    }.onFailure { failure ->
+                        logger.warn(
+                            "[VeloUtils] TAB integration could not be initialized and was disabled: {}",
+                            failure.message,
+                            failure,
+                        )
+                    }
+                }
                 val knownModules = setOf(
                     "maintenance", "reports", "staff", "staff-chat", "chat", "messaging", "moderation", "motd", "server-access",
                     "network", "discord", "announcements", "placeholders",
@@ -411,13 +443,13 @@ public class VeloUtilsPlugin @Inject constructor(
 
     @Subscribe
     public fun shutdown(event: ProxyShutdownEvent) {
-        storage?.close()
-        storage = null
         publishedApi.set(null)
-        protocolGateway?.close()
-        protocolGateway = null
         ownedResources.reversed().forEach { resource -> runCatching(resource::close) }
         ownedResources.clear()
+        protocolGateway?.close()
+        protocolGateway = null
+        storage?.close()
+        storage = null
         scope.cancel("Velocity shutdown")
         logger.info("[VeloUtils] Shutdown complete.")
     }

@@ -35,6 +35,7 @@ dependencies {
     implementation(project(":veloutils-core"))
     implementation(project(":veloutils-protocol"))
     compileOnly("com.velocitypowered:velocity-api:4.1.0-SNAPSHOT")
+    compileOnly("com.github.NEZNAMY:TAB-API:6.1.2")
     implementation("org.spongepowered:configurate-yaml:4.2.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.9.0")

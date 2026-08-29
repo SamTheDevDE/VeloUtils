@@ -10,6 +10,7 @@ Start here:
 2. [Modules](modules.md): Decide which features you want.
 3. [Configuration](configuration.md): Enable and customize those features.
 4. [Commands and permissions](commands-and-permissions.md): Give players and staff access.
+5. [TAB integration](tab-integration.md): Expose Velocity/network data to an optional TAB installation.
 
 Other useful pages:
 

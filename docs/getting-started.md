@@ -81,7 +81,7 @@ Never share the secret or upload a populated config file publicly. Also firewall
 
 Features are called modules. Most optional modules start disabled so the plugin does not use resources for features you do not want.
 
-For example, to enable chat, messaging, presentation, and AFK on Paper/Folia:
+For example, to enable chat, messaging, and AFK on Paper/Folia:
 
 ```yaml
 modules:
@@ -89,7 +89,6 @@ modules:
   announcements: false
   chat: true
   messaging: true
-  presentation: true
   moderation: false
   placeholders: true
   staff-chat: true

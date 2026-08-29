@@ -100,6 +100,9 @@ tasks.register("verifyPluginArtifacts") {
             check("\"id\":\"veloutils\"" in text.replace(" ", "")) { "Proxy plugin id is invalid" }
             check("de.samthedev.veloutils.proxy.bootstrap.VeloUtilsPlugin" in text) { "Proxy entry point is invalid" }
             check(archive.getEntry("kotlin/Unit.class") != null) { "Proxy artifact does not contain the Kotlin runtime" }
+            check(archive.entries().asSequence().none { it.name.startsWith("me/neznamy/tab/") }) {
+                "Proxy artifact must not bundle TAB or TAB-API classes"
+            }
         }
         ZipFile(bridgeJar).use { archive ->
             val metadata = checkNotNull(archive.getEntry("plugin.yml")) { "Bridge metadata is missing" }

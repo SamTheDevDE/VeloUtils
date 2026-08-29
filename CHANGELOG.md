@@ -31,17 +31,20 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 - Persistent maintenance scheduling, countdown announcements, automatic expiry, and restart restoration.
 - Standalone Paper/Folia chat policy with safe Adventure rendering, mute/clear, cooldown, duplicate, caps, and optional filters.
 - Local and protocol-v4 acknowledged cross-server private messaging with reply, persistent UUID ignores, ignore synchronization, and social spy commands.
-- Selected animated TAB designs, scoreboards, nametags, and configured or temporary bossbars using the shared placeholder renderer.
-- PlaceholderAPI-backed presentation values and LuckPerms primary-group selection through the installed PlaceholderAPI expansion.
-- Configured backend `server-id` for correct network placeholders and per-server presentation selectors.
+- Configured backend `server-id` for correct network placeholders.
 - Target-backend delivery acknowledgements and SQL-backed, backend-synchronized UUID ignore relationships.
 - Server, radius, and network chat channels with selection, local addon channels, mentions/sounds, and safe clickable URLs.
-- Incremental duplicate-safe scoreboards and per-viewer nametag teams with selector, group, permission, visibility, collision, and sorting support.
-- Multiline TAB layouts, supported player-list ordering, and scheduled/targeted temporary bossbars through the public API.
 - Optional one-shot pre-maintenance transfer with bypass exclusion and normal server-access authorization.
 - A centralized `docs/` site with a plain-language installation guide, server-owner module/configuration references, and clearly separated developer and audit documentation.
 - Strict, cached MiniMessage rendering for MOTDs and legacy-formatted server-list sample players with dynamic placeholders.
 - Permission-controlled player chat colors, decorations, and gradients using a presentation-only tag allowlist.
+- Optional TAB 6.1.2 API integration on Velocity with network, backend, maintenance, ping, server metadata, and uptime placeholders.
+- TAB reload re-registration and clean placeholder/event-listener shutdown without bundling TAB.
+
+### Removed
+
+- Built-in Paper/Folia tablist, header/footer, player-list formatting, scoreboard, nametag, and bossbar presentation. TAB now owns visual presentation.
+- The backend `presentation` module, `modules/presentation.yml`, repeating renderer, listeners, and pre-1.0 presentation API models.
 
 ### Fixed
 

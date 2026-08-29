@@ -74,6 +74,10 @@ server-access:
         - lobby
         - limbo
 
+# Optional metadata exposed as data/display placeholders. Keys must match the
+# registered Velocity server names. A max-players value of 0 means unknown.
+servers: {}
+
 motd:
   entries:
     - "<gradient:#7c3aed:#a855f7><bold>VeloUtils Network</bold></gradient>\n<gray>{players} players online</gray>"

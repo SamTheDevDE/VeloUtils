@@ -54,7 +54,7 @@ Paper addons obtain the API from `ServicesManager`. Velocity addons obtain the `
 
 ## Extension points
 
-The current supported API includes service reads and updates, placeholder providers, local chat-channel registration, and scheduled temporary bossbars. Moderation events and arbitrary network chat channels are not published yet. Addons should never use internal implementation packages as a substitute. Network channels need matching proxy permissions and formatting rules.
+The current supported API includes service reads and updates, placeholder providers, and local chat-channel registration. Moderation events and arbitrary network chat channels are not published yet. Addons should never use internal implementation packages as a substitute. Network channels need matching proxy permissions and formatting rules.
 
 Always close registrations during addon shutdown, return immutable/plain placeholder values, use UUID identities, and make database or network work asynchronous.
 
@@ -73,7 +73,7 @@ fun disable() {
 }
 ```
 
-Provider callbacks should return cached or immediately available values. They are called frequently while presentation features render, so they should never query a database or remote service for each request.
+Provider callbacks should return cached or immediately available values. They may be called frequently by consumers, so they should never query a database or remote service for each request.
 
 ## Separate official plugins
 
@@ -82,4 +82,4 @@ Provider callbacks should return cached or immediately available values. They ar
 - VeloGuilds should own guild membership, ranks, roles, and guild chat.
 - VeloFriends should own relationships, requests, privacy, and presence notifications.
 
-These projects should be separate repositories and normal plugins. They may use VeloUtils placeholders and future chat or presentation extension points, but VeloUtils core will not include fake economy, party, guild, or friend features.
+These projects should be separate repositories and normal plugins. They may use VeloUtils placeholders and future chat extension points, but VeloUtils core will not include fake economy, party, guild, or friend features.
