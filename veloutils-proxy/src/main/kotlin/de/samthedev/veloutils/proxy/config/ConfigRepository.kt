@@ -106,7 +106,8 @@ public class ConfigRepository(private val dataDirectory: Path) {
             .getOrElse { throw ConfigValidationException(listOf("storage.yml: type must be sqlite, mysql, or postgresql")) }
         return ProxyConfig(
             modules = ModuleConfig(
-                maintenance = module("maintenance"), reports = module("reports"), staff = module("staff"), staffChat = module("staff-chat"),
+                maintenance = module("maintenance"), reports = module("reports"), staff = module("staff"),
+                staffChat = module("staff-chat"), chat = module("chat", false), messaging = module("messaging", false),
                 moderation = module("moderation", false), motd = module("motd"), serverAccess = module("server-access"),
                 networkCommands = module("network-commands"), discord = module("discord", false),
                 alerts = module("alerts"),
@@ -173,6 +174,12 @@ public class ConfigRepository(private val dataDirectory: Path) {
                 ),
                 warn = config.node("compatibility", "legacy-permissions", "warn").getBoolean(true),
             ),
+            maintenanceTransfer = MaintenanceTransferConfig(
+                enabled = config.node("maintenance", "pre-activation-transfer", "enabled").getBoolean(false),
+                before = DurationParser.parse(config.node("maintenance", "pre-activation-transfer", "before").getString("30s")),
+                destinations = config.node("maintenance", "pre-activation-transfer", "destinations")
+                    .getList(String::class.java, emptyList()).map(String::lowercase),
+            ),
             serverAccessRules = config.node("server-access", "servers").childrenMap().map { (key, node) ->
                 key.toString().lowercase() to ServerAccessRule(
                     permission = node.node("permission").getString()?.trim()?.takeIf(String::isNotEmpty),
@@ -225,6 +232,17 @@ public class ConfigRepository(private val dataDirectory: Path) {
             if (config.updates.checkInterval < java.time.Duration.ofMinutes(15)) add("update-checker.check-interval must be at least 15m")
             if (config.modules.alerts && config.alerts.enabled && config.alerts.messages.isEmpty()) add("alerts.yml: messages must not be empty")
             if (config.alerts.interval < java.time.Duration.ofSeconds(30)) add("alerts.yml: interval must be at least 30s")
+            if (config.maintenanceTransfer.enabled && config.maintenanceTransfer.destinations.isEmpty()) {
+                add("maintenance.pre-activation-transfer.destinations must not be empty when enabled")
+            }
+            if (config.maintenanceTransfer.before !in java.time.Duration.ofSeconds(1)..java.time.Duration.ofMinutes(10)) {
+                add("maintenance.pre-activation-transfer.before must be between 1s and 10m")
+            }
+            config.maintenanceTransfer.destinations.forEach { destination ->
+                if (!Regex("[a-z0-9_-]{1,64}").matches(destination)) {
+                    add("maintenance.pre-activation-transfer destination '$destination' is invalid")
+                }
+            }
         }
         if (problems.isNotEmpty()) throw ConfigValidationException(problems)
     }

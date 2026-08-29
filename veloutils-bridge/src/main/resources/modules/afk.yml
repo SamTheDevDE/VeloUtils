@@ -1,0 +1,10 @@
+config-version: 1
+timeout: 10m
+scan-interval: 5s
+# Empty disables AFK kicks. The duration starts when AFK begins.
+kick-after: ""
+announce: true
+messages:
+  enter: "<yellow><player> is now AFK.</yellow>"
+  leave: "<yellow><player> is no longer AFK.</yellow>"
+  kick: "<red>You were disconnected for being AFK too long.</red>"

@@ -2,6 +2,8 @@
 
 Thanks for helping improve VeloUtils.
 
+Contributions should preserve the project's central promise: modular features, predictable runtime cost, and genuine Paper/Folia safety. Read the [architecture](docs/architecture.md) and [module lifecycle](docs/modules.md) before changing a platform boundary.
+
 ## Before you start
 
 - Open an issue before making a large behavioral or architectural change.
@@ -27,6 +29,7 @@ Thanks for helping improve VeloUtils.
 |---|---|
 | `veloutils-api` | Public contracts and models |
 | `veloutils-common` | Platform-neutral rules |
+| `veloutils-core` | Lifecycle, conditions, placeholders, and rendering infrastructure |
 | `veloutils-protocol` | Shared wire types and validation |
 | `veloutils-proxy` | Velocity behavior |
 | `veloutils-bridge` | Paper/Folia-only behavior |
@@ -40,5 +43,6 @@ Thanks for helping improve VeloUtils.
 - Folia entity and global operations use the correct scheduler.
 - Bug fixes include a regression test where practical.
 - New behavior is reflected in the README, changelog, or status page.
+- Documentation links remain relative and resolve from their containing file.
 
 By contributing, you confirm that you can submit the work under GPL-3.0-only and agree to the [Code of Conduct](CODE_OF_CONDUCT.md).

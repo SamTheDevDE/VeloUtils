@@ -67,13 +67,28 @@ tasks.register("verifyNoProductionJava") {
     }
 }
 
+tasks.register("verifyWorkspaceIsolation") {
+    group = "verification"
+    description = "Rejects accidental references to the unrelated parent workspace."
+    val reviewedFiles = fileTree(rootDir) {
+        include("**/*.kt", "**/*.kts", "**/*.md", "**/*.yml", "**/*.yaml", "**/*.json", "**/*.properties")
+        exclude("**/build/**", "**/.gradle*/**", "**/.git/**")
+    }
+    inputs.files(reviewedFiles)
+    doLast {
+        val unrelatedBrand = "Torus" + "MC"
+        val leaked = reviewedFiles.files.filter { file -> file.readText().contains(unrelatedBrand, ignoreCase = true) }
+        check(leaked.isEmpty()) { "Unrelated workspace references found: ${leaked.sorted()}" }
+    }
+}
+
 tasks.register("verifyPluginArtifacts") {
     group = "verification"
     dependsOn(":veloutils-api:jar", ":veloutils-proxy:shadowJar", ":veloutils-bridge:shadowJar")
     val embeddedVersion = version.toString()
     val apiJar = layout.projectDirectory.file("veloutils-api/build/libs/veloutils-api-$embeddedVersion.jar").asFile
-    val proxyJar = layout.projectDirectory.file("veloutils-proxy/build/libs/veloutils-proxy-$embeddedVersion.jar").asFile
-    val bridgeJar = layout.projectDirectory.file("veloutils-bridge/build/libs/veloutils-bridge-$embeddedVersion.jar").asFile
+    val proxyJar = layout.projectDirectory.file("veloutils-proxy/build/libs/VeloUtils-Velocity-$embeddedVersion.jar").asFile
+    val bridgeJar = layout.projectDirectory.file("veloutils-bridge/build/libs/VeloUtils-Paper-$embeddedVersion.jar").asFile
     val expected = listOf(apiJar, proxyJar, bridgeJar)
     inputs.files(expected)
     doLast {
@@ -82,12 +97,18 @@ tasks.register("verifyPluginArtifacts") {
             val metadata = checkNotNull(archive.getEntry("velocity-plugin.json")) { "Proxy metadata is missing" }
             val text = archive.getInputStream(metadata).bufferedReader().use { it.readText() }
             check("\"version\":\"$embeddedVersion\"" in text.replace(" ", "")) { "Proxy version is not embedded correctly" }
+            check("\"id\":\"veloutils\"" in text.replace(" ", "")) { "Proxy plugin id is invalid" }
+            check("de.samthedev.veloutils.proxy.bootstrap.VeloUtilsPlugin" in text) { "Proxy entry point is invalid" }
             check(archive.getEntry("kotlin/Unit.class") != null) { "Proxy artifact does not contain the Kotlin runtime" }
         }
         ZipFile(bridgeJar).use { archive ->
             val metadata = checkNotNull(archive.getEntry("plugin.yml")) { "Bridge metadata is missing" }
             val text = archive.getInputStream(metadata).bufferedReader().use { it.readText() }
             check("version: '$embeddedVersion'" in text) { "Bridge version is not embedded correctly" }
+            check("name: VeloUtils" in text) { "Paper plugin name is invalid" }
+            check("api-version: '26.2'" in text) { "Paper API version is invalid" }
+            check("folia-supported: true" in text) { "Folia support metadata is missing" }
+            check("de.samthedev.veloutils.bridge.bootstrap.VeloUtilsBridgePlugin" in text) { "Paper entry point is invalid" }
             check(archive.getEntry("kotlin/Unit.class") != null) { "Bridge artifact does not contain the Kotlin runtime" }
         }
     }
@@ -95,6 +116,6 @@ tasks.register("verifyPluginArtifacts") {
 
 tasks.register("qualityGate") {
     group = "verification"
-    dependsOn("verifyNoProductionJava", "verifyPluginArtifacts")
+    dependsOn("verifyNoProductionJava", "verifyWorkspaceIsolation", "verifyPluginArtifacts")
     dependsOn(subprojects.map { "${it.path}:build" })
 }

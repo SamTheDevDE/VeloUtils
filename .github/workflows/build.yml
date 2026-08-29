@@ -27,5 +27,5 @@ jobs:
           if-no-files-found: error
           path: |
             veloutils-api/build/libs/veloutils-api-*.jar
-            veloutils-proxy/build/libs/veloutils-proxy-*.jar
-            veloutils-bridge/build/libs/veloutils-bridge-*.jar
+            veloutils-proxy/build/libs/VeloUtils-Velocity-*.jar
+            veloutils-bridge/build/libs/VeloUtils-Paper-*.jar

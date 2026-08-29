@@ -22,6 +22,7 @@ rootProject.name = "VeloUtils"
 include(
     "veloutils-api",
     "veloutils-common",
+    "veloutils-core",
     "veloutils-protocol",
     "veloutils-proxy",
     "veloutils-bridge",

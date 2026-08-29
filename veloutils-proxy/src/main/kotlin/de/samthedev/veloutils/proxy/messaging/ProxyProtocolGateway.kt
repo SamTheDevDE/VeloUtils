@@ -20,6 +20,13 @@ import de.samthedev.veloutils.protocol.ProtocolVersion
 import de.samthedev.veloutils.protocol.CommandRequestPayload
 import de.samthedev.veloutils.protocol.CommandResponsePayload
 import de.samthedev.veloutils.protocol.ChatPayload
+import de.samthedev.veloutils.protocol.PrivateMessageRequestPayload
+import de.samthedev.veloutils.protocol.PrivateMessageDeliveryPayload
+import de.samthedev.veloutils.protocol.IgnoreUpdateRequestPayload
+import de.samthedev.veloutils.protocol.IgnoreListRequestPayload
+import de.samthedev.veloutils.protocol.IgnoreEntryPayload
+import de.samthedev.veloutils.protocol.IgnoreUpdateResponsePayload
+import de.samthedev.veloutils.protocol.IgnoreListResponsePayload
 import de.samthedev.veloutils.protocol.AlertPayload
 import de.samthedev.veloutils.protocol.DeliveryResponsePayload
 import de.samthedev.veloutils.protocol.DeliveryStatus
@@ -42,15 +49,21 @@ import java.time.Duration
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
+import java.util.regex.Pattern
 import net.kyori.adventure.text.Component
 import de.samthedev.veloutils.api.Punishment
 import de.samthedev.veloutils.proxy.integration.NetworkEventKind
 import de.samthedev.veloutils.proxy.integration.NetworkEventSink
 import de.samthedev.veloutils.common.Permissions
 import de.samthedev.veloutils.proxy.permission.PermissionService
+import de.samthedev.veloutils.proxy.player.PlayerIdentityService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.launch
 import net.kyori.adventure.text.event.ClickEvent
 import net.kyori.adventure.text.event.HoverEvent
 import net.kyori.adventure.text.format.NamedTextColor
+import net.kyori.adventure.key.Key
+import net.kyori.adventure.sound.Sound
 
 public class ProxyProtocolGateway(
     private val codec: ProtocolCodec,
@@ -61,12 +74,18 @@ public class ProxyProtocolGateway(
     private val proxy: ProxyServer,
     private val messages: ConfiguredMessages,
     private val staffChatEnabled: Boolean,
+    private val chatEnabled: Boolean,
+    private val messagingEnabled: Boolean,
+    private val messagingPreferences: MessagingPreferencesRepository?,
+    private val identities: PlayerIdentityService,
+    private val scope: CoroutineScope,
     private val eventSink: NetworkEventSink,
     private val permissions: PermissionService,
     private val authenticatedMode: Boolean,
 ) : AutoCloseable {
     public companion object {
         public val CHANNEL: MinecraftChannelIdentifier = MinecraftChannelIdentifier.create("veloutils", "main")
+        private val PLAYER_NAME: Regex = Regex("[A-Za-z0-9_]{1,16}")
     }
 
     private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
@@ -157,6 +176,17 @@ public class ProxyProtocolGateway(
                 pushPlaceholderSnapshot(source)
             }
             PacketType.STAFF_CHAT_MESSAGE -> handleStaffChat(source, result)
+            PacketType.PRIVATE_MESSAGE_REQUEST -> handlePrivateMessage(source, result)
+            PacketType.PRIVATE_MESSAGE_DELIVERY_RESPONSE -> {
+                val expected = expectedResponders[result.envelope.requestId]
+                if (expected == null || expected != source.serverInfo.name.lowercase()) {
+                    logger.warn("[VeloUtils] Rejected unmatched private-message delivery response from {}", source.serverInfo.name)
+                    return
+                }
+                requests.complete(result.envelope)
+            }
+            PacketType.IGNORE_UPDATE_REQUEST -> handleIgnoreUpdate(source, result)
+            PacketType.IGNORE_LIST_REQUEST -> handleIgnoreList(source, result)
             PacketType.NETWORK_ALERT -> handleNetworkAlert(source, result)
             PacketType.COMMAND_RESPONSE -> {
                 val expected = expectedResponders[result.envelope.requestId]
@@ -170,11 +200,152 @@ public class ProxyProtocolGateway(
         }
     }
 
-    private fun handleStaffChat(source: ServerConnection, result: DecodeResult.Accepted) {
-        if (!staffChatEnabled) {
-            respond(source, PacketType.CHAT_RESPONSE, result.envelope.requestId, DeliveryStatus.MODULE_DISABLED, "Staff chat is disabled on the proxy.")
+    private fun handlePrivateMessage(source: ServerConnection, result: DecodeResult.Accepted) {
+        val preferences = messagingPreferences
+        if (!messagingEnabled || preferences == null) {
+            respond(source, PacketType.PRIVATE_MESSAGE_RESPONSE, result.envelope.requestId, DeliveryStatus.MODULE_DISABLED, "Network private messaging is disabled on the proxy.")
             return
         }
+        val payload = runCatching { json.decodeFromJsonElement<PrivateMessageRequestPayload>(result.envelope.payload) }.getOrNull()
+        if (payload == null) {
+            respond(source, PacketType.PRIVATE_MESSAGE_RESPONSE, result.envelope.requestId, DeliveryStatus.INVALID_MESSAGE, "The private message was malformed.")
+            return
+        }
+        val sender = source.player
+        if (payload.senderId != sender.uniqueId.toString() || payload.senderName != sender.username) {
+            respond(source, PacketType.PRIVATE_MESSAGE_RESPONSE, result.envelope.requestId, DeliveryStatus.AUTHENTICATION_FAILED, "The sender identity did not match the connection.")
+            return
+        }
+        val message = runCatching { InputPolicies.CHAT.validate(payload.message) }.getOrNull()
+        if (!PLAYER_NAME.matches(payload.targetName)) {
+            respond(source, PacketType.PRIVATE_MESSAGE_RESPONSE, result.envelope.requestId, DeliveryStatus.INVALID_MESSAGE, "The target name was invalid.")
+            return
+        }
+        val target = proxy.getPlayer(payload.targetName).orElse(null)
+        if (message == null) {
+            respond(source, PacketType.PRIVATE_MESSAGE_RESPONSE, result.envelope.requestId, DeliveryStatus.INVALID_MESSAGE, "The message was blank or too long.")
+            return
+        }
+        if (target == null || target.uniqueId == sender.uniqueId) {
+            respond(source, PacketType.PRIVATE_MESSAGE_RESPONSE, result.envelope.requestId, DeliveryStatus.NO_RECIPIENTS, "That player is not available on the network.")
+            return
+        }
+        val targetConnection = target.currentServer.orElse(null)
+        if (targetConnection == null) {
+            respond(source, PacketType.PRIVATE_MESSAGE_RESPONSE, result.envelope.requestId, DeliveryStatus.BRIDGE_UNAVAILABLE, "The target backend is unavailable.")
+            return
+        }
+        scope.launch {
+            if (preferences.isIgnoring(target.uniqueId, sender.uniqueId)) {
+                respond(source, PacketType.PRIVATE_MESSAGE_RESPONSE, result.envelope.requestId, DeliveryStatus.IGNORED, "That player is ignoring you.")
+                return@launch
+            }
+            val response = runCatching { requests.register(result.envelope.requestId, requestTimeout) }.getOrElse {
+                respond(source, PacketType.PRIVATE_MESSAGE_RESPONSE, result.envelope.requestId, DeliveryStatus.BRIDGE_UNAVAILABLE, "The messaging request queue is full.")
+                return@launch
+            }
+            expectedResponders[result.envelope.requestId] = targetConnection.serverInfo.name.lowercase()
+            response.whenComplete { envelope, failure ->
+                expectedResponders.remove(result.envelope.requestId)
+                if (failure != null) {
+                    respond(source, PacketType.PRIVATE_MESSAGE_RESPONSE, result.envelope.requestId, DeliveryStatus.BRIDGE_UNAVAILABLE, "The target backend did not acknowledge delivery.")
+                } else {
+                    val acknowledgement = runCatching {
+                        json.decodeFromJsonElement<DeliveryResponsePayload>(envelope.payload)
+                    }.getOrNull()
+                    if (acknowledgement == null) respond(
+                        source, PacketType.PRIVATE_MESSAGE_RESPONSE, result.envelope.requestId,
+                        DeliveryStatus.BRIDGE_UNAVAILABLE, "The target backend returned an invalid acknowledgement.",
+                    ) else respond(
+                        source, PacketType.PRIVATE_MESSAGE_RESPONSE, result.envelope.requestId,
+                        acknowledgement.status, acknowledgement.detail, acknowledgement.recipients,
+                    )
+                }
+            }
+            val delivery = PrivateMessageDeliveryPayload(
+                sender.uniqueId.toString(), sender.username, target.uniqueId.toString(), target.username, message,
+            )
+            val delivered = targetConnection.sendPluginMessage(
+                CHANNEL,
+                codec.encode(
+                    codec.envelope(
+                        PacketType.PRIVATE_MESSAGE_DELIVERY,
+                        result.envelope.requestId,
+                        json.encodeToJsonElement(delivery).jsonObject,
+                    ),
+                ),
+            )
+            if (!delivered) response.completeExceptionally(IllegalStateException("No plugin-message carrier"))
+        }
+    }
+
+    private fun handleIgnoreUpdate(source: ServerConnection, result: DecodeResult.Accepted) {
+        val preferences = messagingPreferences
+        if (!messagingEnabled || preferences == null) {
+            respondIgnore(source, result.envelope.requestId, IgnoreUpdateResponsePayload(false, "Network messaging is disabled."))
+            return
+        }
+        val payload = runCatching { json.decodeFromJsonElement<IgnoreUpdateRequestPayload>(result.envelope.payload) }.getOrNull()
+        val actor = source.player
+        if (payload == null || payload.playerId != actor.uniqueId.toString() || payload.playerName != actor.username) {
+            respondIgnore(source, result.envelope.requestId, IgnoreUpdateResponsePayload(false, "The ignore request identity was invalid."))
+            return
+        }
+        if (!PLAYER_NAME.matches(payload.targetName)) {
+            respondIgnore(source, result.envelope.requestId, IgnoreUpdateResponsePayload(false, "The target name was invalid."))
+            return
+        }
+        scope.launch {
+            val online = proxy.getPlayer(payload.targetName).orElse(null)
+            val resolved = online?.let { IgnoredPlayer(it.uniqueId, it.username) }
+                ?: identities.resolve(payload.targetName)?.let { IgnoredPlayer(it.playerId, it.name) }
+            when {
+                resolved == null -> respondIgnore(source, result.envelope.requestId, IgnoreUpdateResponsePayload(false, "Unknown player '${payload.targetName}'."))
+                resolved.playerId == actor.uniqueId -> respondIgnore(source, result.envelope.requestId, IgnoreUpdateResponsePayload(false, "You cannot ignore yourself."))
+                else -> {
+                    preferences.setIgnoring(actor.uniqueId, resolved, payload.ignored)
+                    respondIgnore(
+                        source,
+                        result.envelope.requestId,
+                        IgnoreUpdateResponsePayload(
+                            true,
+                            "${resolved.name} is ${if (payload.ignored) "now" else "no longer"} ignored.",
+                            IgnoreEntryPayload(resolved.playerId.toString(), resolved.name),
+                            payload.ignored,
+                        ),
+                    )
+                }
+            }
+        }
+    }
+
+    private fun handleIgnoreList(source: ServerConnection, result: DecodeResult.Accepted) {
+        val preferences = messagingPreferences ?: return
+        val payload = runCatching { json.decodeFromJsonElement<IgnoreListRequestPayload>(result.envelope.payload) }.getOrNull()
+        val actor = source.player
+        if (!messagingEnabled || payload == null || payload.playerId != actor.uniqueId.toString() || payload.playerName != actor.username) return
+        scope.launch {
+            val entries = preferences.list(actor.uniqueId).map { IgnoreEntryPayload(it.playerId.toString(), it.name) }
+            val response = IgnoreListResponsePayload(entries)
+            runCatching {
+                source.sendPluginMessage(
+                    CHANNEL,
+                    codec.encode(codec.envelope(PacketType.IGNORE_LIST_RESPONSE, result.envelope.requestId, json.encodeToJsonElement(response).jsonObject)),
+                )
+            }
+        }
+    }
+
+    private fun respondIgnore(source: ServerConnection, requestId: String, payload: IgnoreUpdateResponsePayload) {
+        runCatching {
+            source.sendPluginMessage(
+                CHANNEL,
+                codec.encode(codec.envelope(PacketType.IGNORE_UPDATE_RESPONSE, requestId, json.encodeToJsonElement(payload).jsonObject)),
+            )
+        }.onFailure { logger.warn("[VeloUtils] Could not return ignore preference acknowledgement to {}", source.serverInfo.name) }
+    }
+
+    private fun handleStaffChat(source: ServerConnection, result: DecodeResult.Accepted) {
         val payload = runCatching { json.decodeFromJsonElement<ChatPayload>(result.envelope.payload) }.getOrNull()
         if (payload == null) {
             respond(source, PacketType.CHAT_RESPONSE, result.envelope.requestId, DeliveryStatus.INVALID_MESSAGE, "The chat request was malformed.")
@@ -184,6 +355,14 @@ public class ProxyProtocolGateway(
         val channel = payload.channel.lowercase()
         if (payload.playerId != player.uniqueId.toString() || payload.playerName != player.username) {
             respond(source, PacketType.CHAT_RESPONSE, result.envelope.requestId, DeliveryStatus.AUTHENTICATION_FAILED, "The sender identity did not match the connection.")
+            return
+        }
+        if (channel == "global") {
+            handleGlobalChat(source, result.envelope.requestId, player, payload.message)
+            return
+        }
+        if (!staffChatEnabled) {
+            respond(source, PacketType.CHAT_RESPONSE, result.envelope.requestId, DeliveryStatus.MODULE_DISABLED, "Staff chat is disabled on the proxy.")
             return
         }
         val usePermission = when (channel) {
@@ -224,6 +403,62 @@ public class ProxyProtocolGateway(
         val detail = if (recipients.isEmpty()) "No online players can receive ${channel.replaceFirstChar(Char::uppercase)} Chat." else
             "${channel.replaceFirstChar(Char::uppercase)} Chat message sent to ${recipients.size} recipient${if (recipients.size == 1) "" else "s"}."
         respond(source, PacketType.CHAT_RESPONSE, result.envelope.requestId, status, detail, recipients.size)
+    }
+
+    private fun handleGlobalChat(source: ServerConnection, requestId: String, player: Player, input: String) {
+        if (!chatEnabled) {
+            respond(source, PacketType.CHAT_RESPONSE, requestId, DeliveryStatus.MODULE_DISABLED, "Network global chat is disabled on the proxy.")
+            return
+        }
+        if (!permissions.has(player, Permissions.CHAT_GLOBAL_USE)) {
+            respond(source, PacketType.CHAT_RESPONSE, requestId, DeliveryStatus.NO_PERMISSION, "You do not have permission to use Global Chat.")
+            return
+        }
+        val message = runCatching { InputPolicies.CHAT.validate(input) }.getOrNull()
+        if (message == null) {
+            respond(source, PacketType.CHAT_RESPONSE, requestId, DeliveryStatus.INVALID_MESSAGE, "The message was blank or exceeded the allowed length.")
+            return
+        }
+        val serverName = source.serverInfo.name
+        val playerComponent = Component.text(player.username, NamedTextColor.GRAY)
+            .hoverEvent(HoverEvent.showText(Component.text("Server: $serverName", NamedTextColor.GRAY)))
+            .clickEvent(ClickEvent.suggestCommand("/msg ${player.username} "))
+        proxy.allPlayers.forEach { recipient ->
+            val mention = "@${recipient.username}"
+            val mentionPattern = Pattern.compile(
+                "(?i)(?<![A-Za-z0-9_])${Pattern.quote(mention)}(?![A-Za-z0-9_])",
+            )
+            val mentioned = mentionPattern.matcher(message).find()
+            val body = if (mentioned) {
+                Component.text(message, NamedTextColor.WHITE).replaceText { builder ->
+                    builder.match(mentionPattern)
+                        .replacement(Component.text(mention, NamedTextColor.YELLOW))
+                }
+            } else Component.text(message, NamedTextColor.WHITE)
+            recipient.sendMessage(
+                messages.render(
+                    "chat.global-format",
+                    mapOf("player" to playerComponent, "server" to Component.text(serverName), "message" to body),
+                ),
+            )
+            if (mentioned) recipient.playSound(
+                Sound.sound(Key.key("minecraft", "block.note_block.pling"), Sound.Source.MASTER, 1.0f, 1.2f),
+            )
+        }
+        proxy.consoleCommandSource.sendMessage(
+            messages.render(
+                "chat.global-format",
+                mapOf("player" to playerComponent, "server" to Component.text(serverName), "message" to Component.text(message)),
+            ),
+        )
+        respond(
+            source,
+            PacketType.CHAT_RESPONSE,
+            requestId,
+            DeliveryStatus.SENT,
+            "Global Chat message sent to ${proxy.playerCount} player${if (proxy.playerCount == 1) "" else "s"}.",
+            proxy.playerCount,
+        )
     }
 
     private fun handleNetworkAlert(source: ServerConnection, result: DecodeResult.Accepted) {

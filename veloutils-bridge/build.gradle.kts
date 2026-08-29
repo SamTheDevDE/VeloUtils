@@ -9,6 +9,7 @@ plugins {
 dependencies {
     implementation(project(":veloutils-api"))
     implementation(project(":veloutils-common"))
+    implementation(project(":veloutils-core"))
     implementation(project(":veloutils-protocol"))
     compileOnly("io.papermc.paper:paper-api:26.2.build.119-stable")
     compileOnly("me.clip:placeholderapi:2.11.7")
@@ -26,7 +27,7 @@ tasks.jar { enabled = false }
 
 tasks.named<ShadowJar>("shadowJar") {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
-    archiveBaseName.set("veloutils-bridge")
+    archiveBaseName.set("VeloUtils-Paper")
     archiveClassifier.set("")
     mergeServiceFiles()
     exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")

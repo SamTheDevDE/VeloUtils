@@ -12,17 +12,44 @@ import de.samthedev.veloutils.common.Permissions
 import de.samthedev.veloutils.common.DurationParser
 import de.samthedev.veloutils.common.PermissionDefinition
 import de.samthedev.veloutils.bridge.player.MuteEnforcement
+import de.samthedev.veloutils.bridge.afk.AfkConfig
+import de.samthedev.veloutils.bridge.afk.AfkModule
+import de.samthedev.veloutils.bridge.announcement.AnnouncementConfig
+import de.samthedev.veloutils.bridge.announcement.AnnouncementModule
+import de.samthedev.veloutils.bridge.chat.LocalChatConfig
+import de.samthedev.veloutils.bridge.chat.LocalChatModule
+import de.samthedev.veloutils.bridge.presentation.PresentationConfig
+import de.samthedev.veloutils.bridge.presentation.PresentationModule
+import de.samthedev.veloutils.bridge.messaging.LocalMessagingModule
+import de.samthedev.veloutils.bridge.messaging.loadMessagingConfig
+import de.samthedev.veloutils.core.module.ModuleDescriptor
+import de.samthedev.veloutils.core.module.ModuleFactory
+import de.samthedev.veloutils.core.module.ModuleId
+import de.samthedev.veloutils.core.module.ModuleRuntime
+import de.samthedev.veloutils.core.module.ResourceModule
+import de.samthedev.veloutils.core.placeholder.PlaceholderFacade
 import org.bukkit.entity.Player
 import org.bukkit.event.EventHandler
 import org.bukkit.event.Listener
+import org.bukkit.event.HandlerList
 import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.plugin.java.JavaPlugin
+import org.bukkit.plugin.ServicePriority
 import org.spongepowered.configurate.yaml.YamlConfigurationLoader
 
 public class VeloUtilsBridgePlugin : JavaPlugin(), Listener {
     private lateinit var gateway: BridgeProtocolGateway
     private lateinit var schedulers: PlatformSchedulers
-    private val placeholders = NetworkPlaceholderCache()
+    private var moduleRuntime: ModuleRuntime? = null
+    private var placeholders: NetworkPlaceholderCache? = null
+    private var placeholderFacade: PlaceholderFacade? = null
+    private var placeholderRegistration: AutoCloseable? = null
+    private var afkService: de.samthedev.veloutils.api.AfkService? = null
+    private var chatService: de.samthedev.veloutils.api.ChatService? = null
+    private var muteEnforcement: MuteEnforcement? = null
+    private var presentationService: de.samthedev.veloutils.api.PresentationService? = null
+    private var messagingService: de.samthedev.veloutils.api.MessagingService? = null
+    private var localMessagingModule: LocalMessagingModule? = null
     private var legacyPermissionsEnabled: Boolean = true
     private var warnOnLegacyPermissions: Boolean = true
     private val warnedLegacyPermissions = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
@@ -69,12 +96,14 @@ public class VeloUtilsBridgePlugin : JavaPlugin(), Listener {
             server.pluginManager.disablePlugin(this)
             return
         }
+        val moderationEnabled = root.node("modules", "moderation").getBoolean(false)
+        val serverId = root.node("server-id").getString("").trim().ifEmpty { server.name }
+        val placeholdersEnabled = root.node("modules", "placeholders").getBoolean(true)
+        val staffChatEnabled = root.node("modules", "staff-chat").getBoolean(true)
+        val networkAlertsEnabled = root.node("modules", "network-alerts").getBoolean(true)
 
         schedulers = PlatformSchedulers(this)
-        val muteEnforcement = MuteEnforcement(
-            schedulers,
-            root.node("moderation", "mute-message").getString("<red>You are muted.</red> <gray><reason></gray>"),
-        )
+        placeholders = if (placeholdersEnabled) NetworkPlaceholderCache() else null
         gateway = BridgeProtocolGateway(
             this,
             ProtocolCodec(
@@ -85,15 +114,107 @@ public class VeloUtilsBridgePlugin : JavaPlugin(), Listener {
             schedulers,
             RemoteCommandPolicy(remoteCommandsEnabled, remoteCommandAllowlist),
             placeholders,
-            muteEnforcement,
+            { muteEnforcement },
+            { payload -> localMessagingModule?.receiveNetwork(payload) ?: de.samthedev.veloutils.protocol.DeliveryStatus.MODULE_DISABLED },
             authenticationRequired,
         )
         server.messenger.registerIncomingPluginChannel(this, BridgeProtocolGateway.CHANNEL, gateway)
         server.messenger.registerOutgoingPluginChannel(this, BridgeProtocolGateway.CHANNEL)
         server.pluginManager.registerEvents(this, this)
-        server.pluginManager.registerEvents(muteEnforcement, this)
-        registerCommands()
-        registerPlaceholders()
+        registerCommands(staffChatEnabled, networkAlertsEnabled)
+        if (placeholdersEnabled) {
+            val cache = checkNotNull(placeholders)
+            val facade = PlaceholderFacade().also { placeholderFacade = it }
+            placeholderRegistration = facade.register("veloutils") { context ->
+                buildMap {
+                    put("server", serverId)
+                    put("network_online", cache.get("network_players") ?: server.onlinePlayers.size.toString())
+                    put("maintenance", cache.get("maintenance") ?: "false")
+                    put("afk", context.playerId?.let { afkService?.snapshot(it)?.afk?.toString() } ?: "false")
+                    cache.snapshot().forEach(::put)
+                }
+            }
+            registerPlaceholders(cache, serverId)
+        }
+        val afk = ModuleId("afk")
+        val announcements = ModuleId("announcements")
+        val chat = ModuleId("chat")
+        val moderation = ModuleId("moderation")
+        val presentation = ModuleId("presentation")
+        val messaging = ModuleId("messaging")
+        moduleRuntime = ModuleRuntime(
+            mapOf(
+                ModuleDescriptor(afk) to ModuleFactory {
+                    AfkModule(this, schedulers, AfkConfig.load(this)).also { afkService = it.states }
+                },
+                ModuleDescriptor(announcements) to ModuleFactory {
+                    AnnouncementModule(this, schedulers, AnnouncementConfig.load(this))
+                },
+                ModuleDescriptor(chat) to ModuleFactory {
+                    LocalChatModule(
+                        this,
+                        schedulers,
+                        serverId,
+                        LocalChatConfig.load(this),
+                        placeholderFacade,
+                        gateway::chat,
+                    ).also { chatService = it }
+                },
+                ModuleDescriptor(moderation) to ModuleFactory {
+                    ResourceModule {
+                        val enforcement = MuteEnforcement(
+                            schedulers,
+                            root.node("moderation", "mute-message").getString("<red>You are muted.</red> <gray><reason></gray>"),
+                        ).also { muteEnforcement = it }
+                        server.pluginManager.registerEvents(enforcement, this)
+                        AutoCloseable {
+                            HandlerList.unregisterAll(enforcement)
+                            if (muteEnforcement === enforcement) muteEnforcement = null
+                        }
+                    }
+                },
+                ModuleDescriptor(presentation) to ModuleFactory {
+                    PresentationModule(this, schedulers, serverId, PresentationConfig.load(this, schedulers), placeholderFacade) {
+                        afkService as? de.samthedev.veloutils.bridge.afk.AfkStateService
+                    }
+                        .also { presentationService = it }
+                },
+                ModuleDescriptor(messaging) to ModuleFactory {
+                    LocalMessagingModule(
+                        this,
+                        schedulers,
+                        loadMessagingConfig(this),
+                        gateway::privateMessage,
+                        gateway::updateIgnore,
+                        gateway::requestIgnoreList,
+                    ).also {
+                        messagingService = it
+                        localMessagingModule = it
+                    }
+                },
+            ),
+        ).also { runtime ->
+            val enabled = buildSet {
+                if (root.node("modules", "afk").getBoolean(false)) add(afk)
+                if (root.node("modules", "announcements").getBoolean(false)) add(announcements)
+                if (root.node("modules", "chat").getBoolean(false)) add(chat)
+                if (moderationEnabled) add(moderation)
+                if (root.node("modules", "presentation").getBoolean(false)) add(presentation)
+                if (root.node("modules", "messaging").getBoolean(false)) add(messaging)
+            }
+            runtime.start(enabled)
+            val apiEnabled = enabled.mapTo(mutableSetOf()) { it.value }.apply {
+                if (placeholdersEnabled) add("placeholders")
+                if (staffChatEnabled) add("staff-chat")
+                if (networkAlertsEnabled) add("network-alerts")
+            }
+            server.servicesManager.register(
+                de.samthedev.veloutils.api.VeloUtilsApi::class.java,
+                PaperApiServices(apiEnabled, afkService, chatService, placeholderFacade, presentationService, messagingService),
+                this,
+                ServicePriority.Normal,
+            )
+        }
         schedulers.repeatGlobal(20L, heartbeat.seconds * 20L) { sendHeartbeat() }
         logger.info("VeloUtils Bridge enabled on ${if (schedulers.isFolia) "Folia" else "Paper"} ${server.minecraftVersion}.")
     }
@@ -112,8 +233,8 @@ public class VeloUtilsBridgePlugin : JavaPlugin(), Listener {
         schedulers.entity(carrier) { gateway.heartbeat(carrier) }
     }
 
-    private fun registerCommands() {
-        getCommand("vualert")?.setExecutor { sender, _, _, arguments ->
+    private fun registerCommands(staffChatEnabled: Boolean, networkAlertsEnabled: Boolean) {
+        if (networkAlertsEnabled) getCommand("vualert")?.setExecutor { sender, _, _, arguments ->
             if (!hasPermission(sender, Permissions.ALERT_BROADCAST)) {
                 sender.sendMessage("You do not have permission to broadcast network alerts.")
                 return@setExecutor true
@@ -127,7 +248,7 @@ public class VeloUtilsBridgePlugin : JavaPlugin(), Listener {
                 .onFailure { sender.sendMessage("Alert rejected: ${it.message ?: "invalid message"}") }
             true
         }
-        mapOf("sc" to "staff", "ac" to "admin").forEach { (command, channel) ->
+        if (staffChatEnabled) mapOf("sc" to "staff", "ac" to "admin").forEach { (command, channel) ->
             getCommand(command)?.setExecutor { sender, _, _, arguments ->
                 val permission = if (channel == "staff") Permissions.CHAT_STAFF_USE else Permissions.CHAT_ADMIN_USE
                 if (!hasPermission(sender, permission)) {
@@ -156,14 +277,27 @@ public class VeloUtilsBridgePlugin : JavaPlugin(), Listener {
         return true
     }
 
-    private fun registerPlaceholders() {
+    private fun registerPlaceholders(cache: NetworkPlaceholderCache, serverId: String) {
         if (server.pluginManager.isPluginEnabled("PlaceholderAPI")) {
-            NetworkPlaceholderExpansion(this, placeholders).register()
+            NetworkPlaceholderExpansion(this, serverId, cache) { afkService }.register()
             logger.info("PlaceholderAPI integration enabled.")
         } else logger.info("PlaceholderAPI not installed; placeholder integration remains disabled.")
     }
 
     override fun onDisable() {
+        moduleRuntime?.close()
+        moduleRuntime = null
+        afkService = null
+        chatService = null
+        muteEnforcement = null
+        presentationService = null
+        messagingService = null
+        localMessagingModule = null
+        placeholderRegistration?.close()
+        placeholderRegistration = null
+        placeholderFacade = null
+        placeholders = null
+        server.servicesManager.unregisterAll(this)
         server.messenger.unregisterIncomingPluginChannel(this)
         server.messenger.unregisterOutgoingPluginChannel(this)
     }

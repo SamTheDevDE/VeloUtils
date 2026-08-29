@@ -27,10 +27,11 @@ class SchemaMigrationsTest {
             }
             assertTrue("reports" in tables)
             assertTrue("punishments" in tables)
-            assertEquals(2, storage.read { it.createStatement().executeQuery("SELECT COUNT(*) FROM veloutils_schema").use { rs -> rs.next(); rs.getInt(1) } })
-            storage.transaction { connection -> connection.createStatement().use { it.executeUpdate("DELETE FROM veloutils_schema WHERE version = 2") } }
+            assertTrue("message_ignores" in tables)
+            assertEquals(3, storage.read { it.createStatement().executeQuery("SELECT COUNT(*) FROM veloutils_schema").use { rs -> rs.next(); rs.getInt(1) } })
+            storage.transaction { connection -> connection.createStatement().use { it.executeUpdate("DELETE FROM veloutils_schema WHERE version = 3") } }
             storage.initialize()
-            assertEquals(2, storage.read { it.createStatement().executeQuery("SELECT COUNT(*) FROM veloutils_schema").use { rs -> rs.next(); rs.getInt(1) } })
+            assertEquals(3, storage.read { it.createStatement().executeQuery("SELECT COUNT(*) FROM veloutils_schema").use { rs -> rs.next(); rs.getInt(1) } })
         } finally {
             storage.close()
             Files.deleteIfExists(database)

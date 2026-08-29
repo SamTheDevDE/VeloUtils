@@ -10,6 +10,12 @@ import de.samthedev.veloutils.protocol.CommandRequestPayload
 import de.samthedev.veloutils.protocol.CommandResponsePayload
 import de.samthedev.veloutils.protocol.PlaceholderPayload
 import de.samthedev.veloutils.protocol.MuteStatePayload
+import de.samthedev.veloutils.protocol.PrivateMessageRequestPayload
+import de.samthedev.veloutils.protocol.PrivateMessageDeliveryPayload
+import de.samthedev.veloutils.protocol.IgnoreUpdateRequestPayload
+import de.samthedev.veloutils.protocol.IgnoreListRequestPayload
+import de.samthedev.veloutils.protocol.IgnoreUpdateResponsePayload
+import de.samthedev.veloutils.protocol.IgnoreListResponsePayload
 import de.samthedev.veloutils.protocol.DecodeResult
 import de.samthedev.veloutils.protocol.HelloPayload
 import de.samthedev.veloutils.protocol.PacketType
@@ -38,14 +44,17 @@ public class BridgeProtocolGateway(
     private val isFolia: Boolean,
     private val schedulers: PlatformSchedulers,
     private val remoteCommands: RemoteCommandPolicy,
-    private val placeholders: NetworkPlaceholderCache,
-    private val muteEnforcement: MuteEnforcement,
+    private val placeholders: NetworkPlaceholderCache?,
+    private val muteEnforcement: () -> MuteEnforcement?,
+    private val privateMessageHandler: (PrivateMessageDeliveryPayload) -> DeliveryStatus,
     private val authenticatedMode: Boolean,
 ) : PluginMessageListener {
     public companion object { public const val CHANNEL: String = "veloutils:main" }
     private val json = Json { ignoreUnknownKeys = true; explicitNulls = false }
     private data class PendingFeedback(val sender: CommandSender, val label: String)
     private val pendingFeedback = ConcurrentHashMap<String, PendingFeedback>()
+    private val pendingIgnoreUpdates = ConcurrentHashMap<String, (IgnoreUpdateResponsePayload) -> Unit>()
+    private val pendingIgnoreLists = ConcurrentHashMap<String, (IgnoreListResponsePayload) -> Unit>()
 
     public fun hello(carrier: Player) {
         val payload = HelloPayload(
@@ -87,6 +96,47 @@ public class BridgeProtocolGateway(
         sendWithFeedback(sender, carrier, PacketType.NETWORK_ALERT, "Network alert", json.encodeToJsonElement(payload).jsonObject)
     }
 
+    public fun privateMessage(sender: Player, targetName: String, message: String): Boolean {
+        val safe = InputPolicies.CHAT.validate(message)
+        val payload = PrivateMessageRequestPayload(sender.uniqueId.toString(), sender.name, targetName, safe)
+        sendWithFeedback(
+            sender,
+            sender,
+            PacketType.PRIVATE_MESSAGE_REQUEST,
+            "Private message",
+            json.encodeToJsonElement(payload).jsonObject,
+        )
+        return true
+    }
+
+    public fun updateIgnore(
+        player: Player,
+        targetName: String,
+        ignored: Boolean,
+        callback: (IgnoreUpdateResponsePayload) -> Unit,
+    ) {
+        val requestId = newRequestId()
+        pendingIgnoreUpdates[requestId] = callback
+        val payload = IgnoreUpdateRequestPayload(player.uniqueId.toString(), player.name, targetName, ignored)
+        runCatching { send(player, PacketType.IGNORE_UPDATE_REQUEST, requestId, json.encodeToJsonElement(payload).jsonObject) }
+            .onFailure {
+                pendingIgnoreUpdates.remove(requestId)
+                callback(IgnoreUpdateResponsePayload(false, "The proxy bridge is unavailable."))
+            }
+        schedulers.laterAsync(6) {
+            pendingIgnoreUpdates.remove(requestId)?.invoke(IgnoreUpdateResponsePayload(false, "The proxy did not acknowledge the ignore request."))
+        }
+    }
+
+    public fun requestIgnoreList(player: Player, callback: (IgnoreListResponsePayload) -> Unit) {
+        val requestId = newRequestId()
+        pendingIgnoreLists[requestId] = callback
+        val payload = IgnoreListRequestPayload(player.uniqueId.toString(), player.name)
+        runCatching { send(player, PacketType.IGNORE_LIST_REQUEST, requestId, json.encodeToJsonElement(payload).jsonObject) }
+            .onFailure { pendingIgnoreLists.remove(requestId) }
+        schedulers.laterAsync(6) { pendingIgnoreLists.remove(requestId) }
+    }
+
     override fun onPluginMessageReceived(channel: String, player: Player, message: ByteArray) {
         if (channel != CHANNEL) return
         when (val result = codec.decode(message)) {
@@ -95,13 +145,38 @@ public class BridgeProtocolGateway(
                 PacketType.COMMAND_REQUEST -> handleCommand(player, result.envelope.requestId, result.envelope.payload)
                 PacketType.PLACEHOLDER_RESPONSE -> runCatching {
                     json.decodeFromJsonElement<PlaceholderPayload>(result.envelope.payload)
-                }.onSuccess { placeholders.update(it.values) }
-                PacketType.MUTE_STATE -> if (authenticatedMode) {
+                }.onSuccess { placeholders?.update(it.values) }
+                PacketType.MUTE_STATE -> if (authenticatedMode && muteEnforcement() != null) {
                     runCatching { json.decodeFromJsonElement<MuteStatePayload>(result.envelope.payload) }
-                        .onSuccess(muteEnforcement::update)
+                        .onSuccess { muteEnforcement()?.update(it) }
                         .onFailure { plugin.logger.warning("Rejected malformed mute-state packet.") }
-                } else plugin.logger.warning("Ignored mute-state packet because protocol authentication is disabled.")
-                PacketType.CHAT_RESPONSE, PacketType.ALERT_RESPONSE -> handleDeliveryResponse(result.envelope.requestId, result.envelope.payload)
+                } else plugin.logger.fine("Ignored mute-state packet because moderation or protocol authentication is disabled.")
+                PacketType.PRIVATE_MESSAGE_DELIVERY -> {
+                    val delivery = runCatching {
+                        json.decodeFromJsonElement<PrivateMessageDeliveryPayload>(result.envelope.payload)
+                    }.getOrNull()
+                    val status = if (delivery == null) DeliveryStatus.INVALID_MESSAGE else privateMessageHandler(delivery)
+                    val detail = when (status) {
+                        DeliveryStatus.SENT -> "Message delivered to ${delivery?.targetName.orEmpty()}."
+                        DeliveryStatus.IGNORED -> "That player is ignoring you."
+                        DeliveryStatus.NO_RECIPIENTS -> "That player is no longer on the target backend."
+                        else -> "The target backend rejected the private message."
+                    }
+                    val response = DeliveryResponsePayload(status == DeliveryStatus.SENT, status, if (status == DeliveryStatus.SENT) 1 else 0, detail)
+                    send(player, PacketType.PRIVATE_MESSAGE_DELIVERY_RESPONSE, result.envelope.requestId, json.encodeToJsonElement(response).jsonObject)
+                }
+                PacketType.CHAT_RESPONSE, PacketType.ALERT_RESPONSE, PacketType.PRIVATE_MESSAGE_RESPONSE ->
+                    handleDeliveryResponse(result.envelope.requestId, result.envelope.payload)
+                PacketType.IGNORE_UPDATE_RESPONSE -> {
+                    val callback = pendingIgnoreUpdates.remove(result.envelope.requestId) ?: return
+                    runCatching { json.decodeFromJsonElement<IgnoreUpdateResponsePayload>(result.envelope.payload) }
+                        .onSuccess(callback)
+                }
+                PacketType.IGNORE_LIST_RESPONSE -> {
+                    val callback = pendingIgnoreLists.remove(result.envelope.requestId) ?: return
+                    runCatching { json.decodeFromJsonElement<IgnoreListResponsePayload>(result.envelope.payload) }
+                        .onSuccess(callback)
+                }
                 else -> plugin.logger.fine("Ignored unsupported VeloUtils proxy packet ${result.type}.")
             }
             is DecodeResult.Rejected -> plugin.logger.warning("Rejected VeloUtils proxy packet: ${result.error.code}")

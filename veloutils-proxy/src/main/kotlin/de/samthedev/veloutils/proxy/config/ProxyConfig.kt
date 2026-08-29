@@ -9,6 +9,8 @@ public data class ModuleConfig(
     val reports: Boolean,
     val staff: Boolean,
     val staffChat: Boolean,
+    val chat: Boolean,
+    val messaging: Boolean,
     val moderation: Boolean,
     val motd: Boolean,
     val serverAccess: Boolean,
@@ -46,6 +48,12 @@ public data class ModerationConfig(
 public data class UiConfig(val pageSize: Int)
 
 public data class LegacyPermissionConfig(val enabled: Boolean, val warn: Boolean)
+
+public data class MaintenanceTransferConfig(
+    val enabled: Boolean,
+    val before: Duration,
+    val destinations: List<String>,
+)
 
 public data class MotdConfig(
     val entries: List<String>,
@@ -95,6 +103,7 @@ public data class ProxyConfig(
     val alerts: AlertConfig,
     val ui: UiConfig,
     val legacyPermissions: LegacyPermissionConfig,
+    val maintenanceTransfer: MaintenanceTransferConfig,
     val serverAccessRules: Map<String, ServerAccessRule>,
 )
 

@@ -1,6 +1,6 @@
 # Third-party notices
 
-VeloUtils is GPL-3.0-only. Dependencies remain subject to their own licenses. This page is a quick reference; packaged license metadata is authoritative.
+VeloUtils is distributed under GPL-3.0-only. Dependencies remain subject to their own licenses. This page lists the main build and runtime dependencies. License information packaged with each dependency is the final reference.
 
 ## Bundled runtime components
 
@@ -26,3 +26,5 @@ VeloUtils is GPL-3.0-only. Dependencies remain subject to their own licenses. Th
 | Gradle Wrapper | Build bootstrap | Apache-2.0 |
 
 Velocity, Paper, Folia, Minecraft, Discord, Tebex, LuckPerms, and PlaceholderAPI are names or marks of their respective owners. VeloUtils is not affiliated with Mojang Studios or Microsoft.
+
+Dependency versions are declared in the Gradle build files and should be reviewed whenever this notice or the shaded artifact contents change.

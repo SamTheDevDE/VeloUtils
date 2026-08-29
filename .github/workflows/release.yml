@@ -25,8 +25,8 @@ jobs:
           ./gradlew --no-daemon --configuration-cache clean qualityGate -PprojectVersion="$VERSION"
           mkdir -p release
           cp veloutils-api/build/libs/veloutils-api-"$VERSION".jar release/
-          cp veloutils-proxy/build/libs/veloutils-proxy-"$VERSION".jar release/
-          cp veloutils-bridge/build/libs/veloutils-bridge-"$VERSION".jar release/
+          cp veloutils-proxy/build/libs/VeloUtils-Velocity-"$VERSION".jar release/
+          cp veloutils-bridge/build/libs/VeloUtils-Paper-"$VERSION".jar release/
           cd release
           sha256sum *.jar > SHA256SUMS
       - uses: softprops/action-gh-release@v3

@@ -12,12 +12,12 @@ Constructive technical disagreement is welcome. The following behavior is not:
 - Publishing another person's private information
 - Sustained disruption of project spaces
 
-This policy applies to repositories, issue trackers, reviews, community chats, and public representation of VeloUtils.
+This policy applies to repositories, issue trackers, pull requests, reviews, community chats, and public representation of VeloUtils.
 
 ## Enforcement
 
-Maintainers may remove harmful content and issue warnings, temporary restrictions, or permanent exclusions when proportionate.
+Maintainers may remove harmful content and issue warnings, temporary restrictions, or permanent exclusions when proportionate. Enforcement decisions should consider context, impact, prior behavior, and the safety of affected community members.
 
 Report conduct concerns privately using the contact method in [SECURITY.md](SECURITY.md). Reports will be handled as confidentially and fairly as practical. Retaliation is prohibited.
 
-This policy is inspired by the Contributor Covenant.
+This policy is inspired by the Contributor Covenant and may be clarified as the project community grows.

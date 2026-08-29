@@ -38,6 +38,12 @@ public object Permissions {
     public val CHAT_STAFF_RECEIVE: PermissionDefinition = permission("veloutils.chat.staff.receive", "Receive staff-chat messages", "veloutils.chat.staff")
     public val CHAT_ADMIN_USE: PermissionDefinition = permission("veloutils.chat.admin.use", "Send admin-chat messages", "veloutils.chat.admin")
     public val CHAT_ADMIN_RECEIVE: PermissionDefinition = permission("veloutils.chat.admin.receive", "Receive admin-chat messages", "veloutils.chat.admin")
+    public val CHAT_MANAGE: PermissionDefinition = permission("veloutils.chat.manage", "Manage local chat")
+    public val CHAT_MUTE_BYPASS: PermissionDefinition = permission("veloutils.chat.mute.bypass", "Speak while local chat is muted")
+    public val CHAT_COOLDOWN_BYPASS: PermissionDefinition = permission("veloutils.chat.cooldown.bypass", "Bypass local chat cooldown and duplicate checks")
+    public val CHAT_GLOBAL_USE: PermissionDefinition = permission("veloutils.chat.global.use", "Use network-wide global chat")
+    public val MESSAGING_USE: PermissionDefinition = permission("veloutils.messaging.use", "Use private messaging")
+    public val MESSAGING_SOCIAL_SPY: PermissionDefinition = permission("veloutils.messaging.socialspy", "Observe private-message deliveries")
 
     public val REPORTS_CREATE: PermissionDefinition = permission("veloutils.reports.create", "Create player reports", "veloutils.report.create")
     public val HELPOP_CREATE: PermissionDefinition = permission("veloutils.helpop.create", "Create help requests")
@@ -63,6 +69,8 @@ public object Permissions {
     public val MODERATION_SELF_PUNISH: PermissionDefinition = permission("veloutils.moderation.self-punish", "Confirm self-directed punishments")
 
     public val ALERT_BROADCAST: PermissionDefinition = permission("veloutils.alert.broadcast", "Broadcast a network alert", "veloutils.bridge.alert")
+    public val AFK_TOGGLE: PermissionDefinition = permission("veloutils.afk.toggle", "Toggle personal AFK state")
+    public val AFK_BYPASS: PermissionDefinition = permission("veloutils.afk.bypass", "Bypass automatic AFK state and kicks")
     public val SERVER_ACCESS_BYPASS: PermissionDefinition = permission("veloutils.server-access.bypass", "Bypass configured server access rules")
 
     public val ALL: List<PermissionDefinition> = listOf(
@@ -71,11 +79,12 @@ public object Permissions {
         MAINTENANCE_MANAGE, MAINTENANCE_BYPASS, MAINTENANCE_NOTIFY,
         STAFF_MEMBER, STAFF_LIST_VIEW, STAFF_TIME_SELF, STAFF_TIME_OTHERS, STAFF_ACTIVITY_NOTIFY, STAFF_TIME_EXCLUDE,
         CHAT_STAFF_USE, CHAT_STAFF_RECEIVE, CHAT_ADMIN_USE, CHAT_ADMIN_RECEIVE,
+        CHAT_MANAGE, CHAT_MUTE_BYPASS, CHAT_COOLDOWN_BYPASS, CHAT_GLOBAL_USE, MESSAGING_USE, MESSAGING_SOCIAL_SPY,
         REPORTS_CREATE, HELPOP_CREATE, REPORTS_VIEW, REPORTS_CLAIM, REPORTS_CLOSE, REPORTS_NOTIFY,
         MODERATION_BAN, MODERATION_TEMPBAN, MODERATION_IPBAN, MODERATION_TEMPIPBAN, MODERATION_UNBAN,
         MODERATION_KICK, MODERATION_WARN, MODERATION_MUTE, MODERATION_TEMPMUTE, MODERATION_UNMUTE,
         MODERATION_HISTORY, MODERATION_BAN_VIEW, MODERATION_DETAILS, MODERATION_IP_VIEW, MODERATION_SELF_PUNISH,
-        ALERT_BROADCAST, SERVER_ACCESS_BYPASS,
+        ALERT_BROADCAST, AFK_TOGGLE, AFK_BYPASS, SERVER_ACCESS_BYPASS,
     )
 
     private fun permission(node: String, description: String, vararg aliases: String): PermissionDefinition =

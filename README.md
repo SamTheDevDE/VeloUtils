@@ -1,25 +1,28 @@
 # VeloUtils
 
-VeloUtils is a Kotlin-first utility platform for modern Minecraft networks. It combines a Velocity proxy plugin, an optional Paper/Folia bridge, a stable API, and a secure cross-server protocol.
+Modern utilities for Minecraft servers and networks.
+
+**Modular by design. Enable what you need.**
+
+VeloUtils is a modular utility plugin for Velocity, Paper, and Folia servers. It provides network tools, maintenance, moderation, chat, private messages, AFK, announcements, and presentation features such as TAB, scoreboards, nametags, and bossbars.
+
+You choose which features are enabled. Disabled features do not register listeners, start tasks, or create their own runtime services.
 
 > [!IMPORTANT]
-> `1.0.0-SNAPSHOT` is a development build. Read [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md) before deploying it.
+> `1.0.0-SNAPSHOT` is a development build. Review the [implementation status](docs/implementation-status.md) before deploying it.
 
-## Highlights
+## What can it do?
 
-- Network discovery, transfer, status, and configurable commands
-- Consistent Adventure chat UI with safe actions and configurable pagination
-- Persistent maintenance, reports, moderation, and staff sessions
-- Offline-player moderation, player-oriented revocation, and complete punishment details
-- Authenticated backend mute enforcement
-- Permission and UUID-based server access rules
-- Cached rotating and virtual-host MOTDs
-- Scheduled network alerts and asynchronous Discord event webhooks
-- Registered-server Limbo fallback and Modrinth update checks
-- Versioned bridge protocol with optional HMAC authentication
-- Paper and genuine Folia scheduler support
-- SQLite, MySQL/MariaDB, and PostgreSQL storage
-- Standard Velocity permissions, compatible with providers such as LuckPerms
+- Find and move players, view server status, and create custom network commands
+- Schedule global or per-server maintenance with countdowns and allowlists
+- Run reports, help requests, staff tracking, bans, mutes, warnings, and punishment history
+- Customize rotating MOTDs, server-list icons, player samples, and maintenance messages
+- Use server, nearby, or network chat with mentions, links, cooldowns, and spam controls
+- Send local or cross-server private messages with reply, ignore, and social spy
+- Configure AFK detection, local announcements, TAB, scoreboards, nametags, and bossbars
+- Send selected events to Discord and use an optional Limbo fallback
+- Store data in SQLite, MySQL/MariaDB, or PostgreSQL
+- Use the same backend JAR on Paper and Folia
 
 ## Requirements
 
@@ -27,76 +30,87 @@ VeloUtils is a Kotlin-first utility platform for modern Minecraft networks. It c
 |---|---|
 | Runtime | Java 25 |
 | Proxy | Velocity 4.1 or newer in the 4.x line |
-| Backend bridge | Paper or Folia 26.2 |
+| Backend server | Paper or Folia 26.2 |
 | PlaceholderAPI | Optional |
 
-## Installation
+## Which JAR do I install?
+
+| Your server | Install |
+|---|---|
+| Velocity only | `VeloUtils-Velocity-<version>.jar` |
+| Paper or Folia only | `VeloUtils-Paper-<version>.jar` |
+| Velocity plus backend servers | Velocity JAR on the proxy and Paper JAR on every backend |
+
+The Paper JAR supports both Paper and Folia. Start with the plain-language [installation guide](docs/getting-started.md).
+
+## Quick installation
 
 ### Proxy
 
-1. Copy `veloutils-proxy-<version>.jar` into Velocity's `plugins` directory.
+1. Copy `VeloUtils-Velocity-<version>.jar` into Velocity's `plugins` directory.
 2. Start the proxy once.
 3. Review the generated files in `plugins/VeloUtils`.
 
 ### Backend bridge
 
-1. Copy `veloutils-bridge-<version>.jar` into each Paper/Folia `plugins` directory.
+1. Copy `VeloUtils-Paper-<version>.jar` into each Paper/Folia `plugins` directory.
 2. Start each backend once.
-3. Configure `plugins/VeloUtilsBridge/config.yml`.
+3. Configure `plugins/VeloUtils/config.yml`.
 4. Restart the backend.
 
-The bridge is optional. Proxy-only features continue to work without it, and the bridge starts normally without PlaceholderAPI.
+The backend plugin is optional. Proxy-only features continue to work without it, and the Paper/Folia plugin also works without Velocity or PlaceholderAPI.
 
-### Secure the connection
+### If you use Velocity with backends
 
 Before production use:
 
 1. Generate a unique random secret of at least 32 bytes.
-2. Put the same secret in the proxy and every bridge configuration.
+2. Put the same secret in the proxy and every Paper/Folia configuration.
 3. Set protocol authentication to `required: true` on both sides.
 4. Firewall backend servers from direct public access.
 5. Enable Velocity secure player forwarding.
 
-See [SECURITY.md](SECURITY.md) for the full deployment checklist.
+The [getting-started guide](docs/getting-started.md) explains where these settings go. See [SECURITY.md](SECURITY.md) for the full production checklist.
 
-## Configuration
+## Configuration at a glance
 
 VeloUtils separates configuration by responsibility:
 
 | File | Purpose |
 |---|---|
 | `config.yml` | Modules, UI, protocol, compatibility, updates, MOTD, and server access |
-| `messages.yml` | MiniMessage text |
+| `messages.yml` | Plugin messages, colors, and formatting |
 | `commands.yml` | Move and informational commands |
-| `moderation.yml` | Punishment and IP-hashing settings |
+| `moderation.yml` | Punishment options and the private protection key for IP bans |
 | `integrations.yml` | Optional external integrations |
 | `alerts.yml` | Rotating network announcements |
-| `storage.yml` | Database connection and pool settings |
+| `storage.yml` | Database type, address, and login details |
 
-Every file has a `config-version`. Existing files are read without being rewritten, so comments and formatting survive normal startup. New defaults are used in memory and can be inspected with `/veloutils config diff`. A real migration creates a `.pre-migration.bak` backup before changing a file. Invalid settings fail early with an actionable error.
+You normally start with `config.yml`, choose the modules you want, restart, and then edit the files for those modules. VeloUtils reports invalid settings in the console instead of silently ignoring them.
 
-## Project layout
+Read [Configuration](docs/configuration.md) for examples or [Modules](docs/modules.md) to decide what to enable.
+
+## For developers
+
+Server owners can skip this section. Addon authors should read the [public API](docs/api.md) and [addon guide](docs/addons.md).
 
 | Module | Responsibility |
 |---|---|
 | `veloutils-api` | Public interfaces and immutable models |
 | `veloutils-common` | Platform-neutral validation and policies |
+| `veloutils-core` | Module lifecycle, selectors, and placeholder/rendering infrastructure |
 | `veloutils-protocol` | Wire packets, authentication, and request tracking |
 | `veloutils-proxy` | Velocity commands, policy, storage, and network state |
 | `veloutils-bridge` | Backend-only Paper/Folia features |
 
-Velocity 4.1 has no general service registry. The loaded `veloutils` plugin instance therefore implements `VeloUtilsApi` directly. Third-party plugins can obtain the plugin instance and cast it using only the API module.
-
 ## Documentation
 
-- [Implementation status](IMPLEMENTATION_STATUS.md)
-- [Commands and permissions](COMMANDS_AND_PERMISSIONS.md)
-- [Architecture](ARCHITECTURE.md)
-- [Migration guide](MIGRATION.md)
-- [Feature decisions](FEATURE_MATRIX.md)
-- [Security audit](SECURITY_AUDIT.md)
-- [Clean-room reference audit](REFERENCE_AUDIT.md)
-- [Contributing](CONTRIBUTING.md)
+The [documentation index](docs/README.md) separates server-owner guides from developer details. Common starting points:
+
+- Server owners: [getting started](docs/getting-started.md), [configuration](docs/configuration.md), and [commands and permissions](docs/commands-and-permissions.md)
+- Addon authors: [public API](docs/api.md) and [addon development](docs/addons.md)
+- Contributors: [architecture](docs/architecture.md), [modules](docs/modules.md), and [contributing](CONTRIBUTING.md)
+- Upgrades and audits: [migration](docs/migration.md), [security audit](docs/security-audit.md), and [clean-room audit](docs/clean-room-audit.md)
 
 ## Build from source
 

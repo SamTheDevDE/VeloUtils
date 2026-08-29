@@ -15,7 +15,11 @@ public class MaintenanceState(initial: MaintenanceSnapshot) {
         while (true) {
             val before = state.get()
             val after = when (change) {
-                is MaintenanceUpdate.Enable -> enable(before, change.server, MaintenanceWindow(change.reason.trim(), change.at))
+                is MaintenanceUpdate.Enable -> enable(
+                    before,
+                    change.server,
+                    MaintenanceWindow(change.reason.trim(), change.at, change.scheduledEnd),
+                )
                 is MaintenanceUpdate.Disable -> disable(before, change.server)
                 is MaintenanceUpdate.Allow -> before.copy(allowedPlayers = before.allowedPlayers + change.playerId)
                 is MaintenanceUpdate.Disallow -> before.copy(allowedPlayers = before.allowedPlayers - change.playerId)
@@ -37,4 +41,3 @@ public class MaintenanceState(initial: MaintenanceSnapshot) {
     private fun normalize(snapshot: MaintenanceSnapshot): MaintenanceSnapshot =
         snapshot.copy(servers = snapshot.servers.mapKeys { it.key.lowercase() })
 }
-

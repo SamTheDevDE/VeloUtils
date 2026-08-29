@@ -1,0 +1,6 @@
+config-version: 1
+initial-delay: 2m
+interval: 10m
+random-non-repeating: false
+messages:
+  - "<gradient:#7c3aed:#a855f7><bold>VeloUtils</bold></gradient> <gray>Welcome to the server!</gray>"

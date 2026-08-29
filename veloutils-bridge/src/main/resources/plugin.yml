@@ -1,13 +1,43 @@
-name: VeloUtilsBridge
+name: VeloUtils
 version: '${version}'
 main: de.samthedev.veloutils.bridge.bootstrap.VeloUtilsBridgePlugin
-description: Lightweight Paper and Folia bridge for VeloUtils
+description: Modular utilities for standalone Paper/Folia servers and VeloUtils networks
 api-version: '26.2'
 author: SamTheDevDE
 folia-supported: true
 softdepend:
   - PlaceholderAPI
 commands:
+  msg:
+    aliases: [tell, w, whisper]
+    description: Sends a private message
+    usage: /msg <player> <message>
+  reply:
+    aliases: [r]
+    description: Replies to the most recent private-message partner
+    usage: /reply <message>
+  ignore:
+    description: Ignores a player locally
+    usage: /ignore <player>
+  unignore:
+    description: Stops ignoring a player locally
+    usage: /unignore <player>
+  ignorelist:
+    description: Lists locally ignored online players
+    usage: /ignorelist
+  socialspy:
+    description: Toggles local private-message social spy
+    usage: /socialspy
+  chat:
+    description: Manages local chat when the chat module is enabled
+    usage: /chat <mute|unmute|clear>
+  channel:
+    aliases: [ch]
+    description: Selects a configured chat channel
+    usage: /channel [channel]
+  afk:
+    description: Toggles your AFK state when the AFK module is enabled
+    usage: /afk
   vualert:
     description: Sends an authorized network alert through VeloUtils
     usage: /vualert <message>
@@ -18,6 +48,24 @@ commands:
     description: Sends an admin-channel message
     usage: /ac <message>
 permissions:
+  veloutils.messaging.use:
+    default: true
+  veloutils.messaging.socialspy:
+    default: op
+  veloutils.chat.manage:
+    default: op
+  veloutils.chat.mute.bypass:
+    default: op
+  veloutils.chat.cooldown.bypass:
+    default: op
+  veloutils.chat.local:
+    default: true
+  veloutils.chat.global.use:
+    default: true
+  veloutils.afk.toggle:
+    default: true
+  veloutils.afk.bypass:
+    default: op
   veloutils.alert.broadcast:
     default: op
   veloutils.chat.staff.use:

@@ -1,0 +1,5 @@
+config-version: 1
+formats:
+  outgoing: "<gray>You → <target>:</gray> <white><message></white>"
+  incoming: "<gray><sender> → You:</gray> <white><message></white>"
+  spy: "<dark_gray>[Spy] <sender> → <target>:</dark_gray> <gray><message></gray>"

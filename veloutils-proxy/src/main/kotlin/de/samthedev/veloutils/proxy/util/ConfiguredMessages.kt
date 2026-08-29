@@ -26,6 +26,7 @@ public class ConfiguredMessages(private val file: Path) {
         "moderation.banned",
         "staff-chat.staff-format",
         "staff-chat.admin-format",
+        "chat.global-format",
     )
     private val placeholderNames = setOf(
         "player", "server", "usage", "reason", "id", "type", "reporter", "channel", "message",

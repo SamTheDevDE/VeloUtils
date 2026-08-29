@@ -8,6 +8,8 @@ modules:
   reports: true
   staff: true
   staff-chat: true
+  chat: false
+  messaging: false
   moderation: false
   motd: true
   server-access: true
@@ -40,6 +42,14 @@ update-checker:
   provider: modrinth
   project-id: veloutils
   check-interval: 6h
+
+maintenance:
+  pre-activation-transfer:
+    enabled: false
+    before: 30s
+    destinations:
+      - lobby
+      - limbo
 
 server-access:
   servers:

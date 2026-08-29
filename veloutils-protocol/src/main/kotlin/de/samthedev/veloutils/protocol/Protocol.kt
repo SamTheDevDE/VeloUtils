@@ -8,7 +8,7 @@ import kotlinx.serialization.json.JsonObject
 import java.util.UUID
 
 public object ProtocolVersion {
-    public const val CURRENT: Int = 2
+    public const val CURRENT: Int = 4
     public const val MINIMUM_SUPPORTED: Int = 1
 }
 
@@ -23,6 +23,14 @@ public enum class PacketType {
     COMMAND_REQUEST,
     COMMAND_RESPONSE,
     STAFF_CHAT_MESSAGE,
+    PRIVATE_MESSAGE_REQUEST,
+    PRIVATE_MESSAGE_DELIVERY,
+    PRIVATE_MESSAGE_DELIVERY_RESPONSE,
+    PRIVATE_MESSAGE_RESPONSE,
+    IGNORE_UPDATE_REQUEST,
+    IGNORE_UPDATE_RESPONSE,
+    IGNORE_LIST_REQUEST,
+    IGNORE_LIST_RESPONSE,
     CHAT_RESPONSE,
     NETWORK_ALERT,
     ALERT_RESPONSE,
@@ -115,6 +123,56 @@ public data class ChatPayload(
 )
 
 @Serializable
+public data class PrivateMessageRequestPayload(
+    @SerialName("sender_id") val senderId: String,
+    @SerialName("sender_name") val senderName: String,
+    @SerialName("target_name") val targetName: String,
+    val message: String,
+)
+
+@Serializable
+public data class PrivateMessageDeliveryPayload(
+    @SerialName("sender_id") val senderId: String,
+    @SerialName("sender_name") val senderName: String,
+    @SerialName("target_id") val targetId: String,
+    @SerialName("target_name") val targetName: String,
+    val message: String,
+)
+
+@Serializable
+public data class IgnoreUpdateRequestPayload(
+    @SerialName("player_id") val playerId: String,
+    @SerialName("player_name") val playerName: String,
+    @SerialName("target_name") val targetName: String,
+    val ignored: Boolean,
+)
+
+@Serializable
+public data class IgnoreListRequestPayload(
+    @SerialName("player_id") val playerId: String,
+    @SerialName("player_name") val playerName: String,
+)
+
+@Serializable
+public data class IgnoreEntryPayload(
+    @SerialName("player_id") val playerId: String,
+    @SerialName("player_name") val playerName: String,
+)
+
+@Serializable
+public data class IgnoreUpdateResponsePayload(
+    val success: Boolean,
+    val detail: String,
+    val target: IgnoreEntryPayload? = null,
+    val ignored: Boolean = false,
+)
+
+@Serializable
+public data class IgnoreListResponsePayload(
+    val entries: List<IgnoreEntryPayload>,
+)
+
+@Serializable
 public data class AlertPayload(
     @SerialName("actor_id") val actorId: String? = null,
     @SerialName("actor_name") val actorName: String,
@@ -132,6 +190,7 @@ public enum class DeliveryStatus {
     BRIDGE_UNAVAILABLE,
     AUTHENTICATION_FAILED,
     NO_RECIPIENTS,
+    IGNORED,
 }
 
 @Serializable

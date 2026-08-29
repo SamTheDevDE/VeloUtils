@@ -26,12 +26,14 @@ public class PlatformSchedulers(private val plugin: Plugin) {
         server.asyncScheduler.runNow(plugin) { task() }
     }
 
-    public fun repeatGlobal(initialTicks: Long, periodTicks: Long, task: () -> Unit) {
-        server.globalRegionScheduler.runAtFixedRate(plugin, { task() }, initialTicks, periodTicks)
+    public fun repeatGlobal(initialTicks: Long, periodTicks: Long, task: () -> Unit): AutoCloseable {
+        val scheduled = server.globalRegionScheduler.runAtFixedRate(plugin, { task() }, initialTicks, periodTicks)
+        return AutoCloseable(scheduled::cancel)
     }
 
-    public fun repeatAsync(initialSeconds: Long, periodSeconds: Long, task: () -> Unit) {
-        server.asyncScheduler.runAtFixedRate(plugin, { task() }, initialSeconds, periodSeconds, TimeUnit.SECONDS)
+    public fun repeatAsync(initialSeconds: Long, periodSeconds: Long, task: () -> Unit): AutoCloseable {
+        val scheduled = server.asyncScheduler.runAtFixedRate(plugin, { task() }, initialSeconds, periodSeconds, TimeUnit.SECONDS)
+        return AutoCloseable(scheduled::cancel)
     }
 
     public fun laterAsync(delaySeconds: Long, task: () -> Unit) {

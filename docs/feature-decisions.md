@@ -1,6 +1,10 @@
 # Feature decisions
 
-This matrix records how behavior from the reference projects was handled.
+[Documentation](README.md) · [Implementation status](implementation-status.md) · [Migration map](migration-map.md)
+
+> This project-history page is optional reading. Server owners should use [What currently works?](implementation-status.md) instead.
+
+This matrix records what happened to features from the project before the rewrite and from projects used only as references. It explains product choices, not source-code history.
 
 ## Decision key
 
@@ -8,8 +12,8 @@ This matrix records how behavior from the reference projects was handled.
 |---|---|
 | **Keep** | Preserve the useful behavior with a fresh implementation |
 | **Redesign** | Preserve the goal with a safer architecture |
-| **Replace** | Use a different model or workflow |
-| **Optional** | Isolate behind a disabled-by-default module boundary |
+| **Replace** | Solve the same need in a different way |
+| **Optional** | Make it a module that starts disabled |
 | **Deprecate** | Support only for migration |
 | **Remove** | Exclude for a documented technical reason |
 
@@ -19,7 +23,7 @@ This matrix records how behavior from the reference projects was handled.
 |---|---|---|
 | `/find`, `/goto`, `/vlist` | Redesign | Shared UI, explicit console behavior, actions, pagination, tab completion |
 | Alerts and rich presentation | Redesign | Validated broadcasts and authenticated backend alerts |
-| Rotating alerts | Keep | Bounded sequential or non-repeating random schedules |
+| Rotating alerts | Keep | Sequential or non-repeating random schedules with clear limits |
 | MOTD and favicon | Redesign | Cached rotation, virtual hosts, maintenance branding |
 | Move commands | Redesign | Aliases, permissions, fallbacks, availability, cooldowns |
 | Informational commands | Keep | Multi-line MiniMessage, click/hover, aliases, cooldowns |
@@ -34,8 +38,8 @@ This matrix records how behavior from the reference projects was handled.
 | Staff list/rank | Redesign | `StaffService` and platform permissions |
 | Staff time | Redesign | UUID sessions and asynchronous range queries |
 | Staff activity notices | Keep | Optional notification channel |
-| Staff/admin chat | Replace | Explicit configured channels; no unsafe chat replay |
-| Reports and helpop | Redesign | Paginated/filterable lifecycle UI, granular actions, cooldowns, notices |
+| Staff/admin chat | Replace | Explicit configured channels without unsafe chat replay |
+| Reports and helpop | Redesign | Pages, filters, separate staff actions, cooldowns, and notices |
 | Name/IP bans and kick | Replace | Offline UUID identity, expiry, keyed IP hashes, history/details/revocation UI |
 | Mutes | Redesign | Authenticated state packets with Paper/Folia bridge chat enforcement |
 
@@ -44,9 +48,9 @@ This matrix records how behavior from the reference projects was handled.
 | Reference behavior | Decision | VeloUtils direction |
 |---|---|---|
 | PlaceholderAPI | Redesign | Local snapshots pushed over the protocol |
-| Backend `/vualert` | Keep | Authorized, bounded alert packets with correlated delivery acknowledgement |
+| Backend `/vualert` | Keep | Authorized, size-limited alerts with matched delivery confirmation |
 | Backend console execution | Redesign | Disabled by default, authenticated, dual allowlists |
-| Discord webhooks | Optional | Typed asynchronous event sinks, bounded retries, and URL redaction |
+| Discord webhooks | Optional | Asynchronous event delivery, limited retries, and hidden URLs |
 | LimboAPI | Optional | Registered-server kick fallback compatible with a Limbo server |
 | Update checking | Replace | Scheduled Modrinth provider and semantic version comparison |
 
@@ -55,7 +59,7 @@ This matrix records how behavior from the reference projects was handled.
 | Reference behavior | Decision | VeloUtils direction |
 |---|---|---|
 | Static API provider | Replace | Plugin instance implements `VeloUtilsApi` |
-| SQLite/MySQL storage | Redesign | Pooling, migrations, prepared SQL; PostgreSQL added |
-| Old permissions | Deprecate | Enabled-by-default, warning-once aliases mapped to canonical capabilities |
+| SQLite/MySQL storage | Redesign | Connection pooling, migrations, and prepared SQL, with PostgreSQL added |
+| Old permissions | Deprecate | Old aliases remain enabled by default and warn once. New permissions are more specific |
 
-Inactive items remain explicitly listed in [IMPLEMENTATION_STATUS.md](IMPLEMENTATION_STATUS.md).
+Inactive items remain explicitly listed in [Implementation status](implementation-status.md).

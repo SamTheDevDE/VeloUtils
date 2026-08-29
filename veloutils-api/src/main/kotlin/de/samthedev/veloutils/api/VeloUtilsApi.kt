@@ -6,13 +6,126 @@ import java.time.Duration
 import java.time.Instant
 import java.util.UUID
 
-/** Stable service entry point exposed through Velocity's service manager. */
+/** Stable entry point exposed by the Velocity plugin instance and Paper/Folia services manager. */
 public interface VeloUtilsApi {
-    public val network: NetworkService
-    public val maintenance: MaintenanceService
-    public val staff: StaffService
-    public val reports: ReportService
-    public val moderation: ModerationService
+    /** Use this before invoking an optional feature service. */
+    public val modules: ModuleService
+    public val network: NetworkService?
+    public val maintenance: MaintenanceService?
+    public val staff: StaffService?
+    public val reports: ReportService?
+    public val moderation: ModerationService?
+    public val afk: AfkService? get() = null
+    public val chat: ChatService? get() = null
+    public val presentation: PresentationService? get() = null
+    public val messaging: MessagingService? get() = null
+    /** Present once a platform has activated shared placeholder rendering. */
+    public val placeholders: PlaceholderService? get() = null
+}
+
+public interface ModuleService {
+    public fun state(id: String): ModuleAvailability
+    public fun active(): Set<String>
+}
+
+public enum class ModuleAvailability { ENABLED, DISABLED, UNAVAILABLE }
+
+public data class PlaceholderContext(
+    val playerId: UUID? = null,
+    val server: String? = null,
+    val world: String? = null,
+)
+
+public fun interface PlaceholderProvider {
+    /** Return plain-text values. MiniMessage markup supplied here is treated as literal text. */
+    public fun resolve(context: PlaceholderContext): Map<String, String>
+}
+
+public interface PlaceholderService {
+    public fun resolve(context: PlaceholderContext): Map<String, String>
+    public fun register(namespace: String, provider: PlaceholderProvider): AutoCloseable
+}
+
+public interface AfkService {
+    public fun snapshot(playerId: UUID): AfkStatus?
+    public suspend fun setAfk(playerId: UUID, afk: Boolean): AfkStatus?
+}
+
+public data class AfkStatus(
+    val playerId: UUID,
+    val afk: Boolean,
+    val since: Instant?,
+    val lastActivity: Instant,
+)
+
+public interface PresentationService {
+    public fun snapshot(): PresentationSnapshot
+    public fun refresh(playerId: UUID)
+    public fun showBossBar(request: TemporaryBossBarRequest): AutoCloseable
+}
+
+public enum class PresentationBossBarColor { PINK, BLUE, RED, GREEN, YELLOW, PURPLE, WHITE }
+public enum class PresentationBossBarOverlay { PROGRESS, NOTCHED_6, NOTCHED_10, NOTCHED_12, NOTCHED_20 }
+
+public data class TemporaryBossBarRequest(
+    val id: String,
+    val text: String,
+    val startsAt: Instant = Instant.now(),
+    val endsAt: Instant,
+    val playerIds: Set<UUID> = emptySet(),
+    val priority: Int = 0,
+    val progress: Float = 1.0f,
+    val color: PresentationBossBarColor = PresentationBossBarColor.PURPLE,
+    val overlay: PresentationBossBarOverlay = PresentationBossBarOverlay.PROGRESS,
+) {
+    init {
+        require(id.matches(Regex("[a-zA-Z0-9_-]{1,64}"))) { "Invalid bossbar id" }
+        require(text.isNotBlank()) { "Bossbar text must not be blank" }
+        require(endsAt.isAfter(startsAt)) { "Bossbar end must follow its start" }
+        require(progress in 0.0f..1.0f) { "Bossbar progress must be between 0 and 1" }
+    }
+}
+
+public data class PresentationSnapshot(
+    val tab: Boolean,
+    val bossBars: Boolean,
+    val scoreboards: Boolean,
+    val nametags: Boolean,
+)
+
+public interface MessagingService {
+    public fun isIgnoring(playerId: UUID, otherId: UUID): Boolean
+    public fun send(senderId: UUID, targetId: UUID, message: String): MessageDelivery
+}
+
+public enum class MessageDelivery { SENT, SENDER_OFFLINE, TARGET_OFFLINE, IGNORED, INVALID }
+
+public enum class ChatChannelScope { SERVER, RADIUS, NETWORK }
+
+public data class ChatChannelDefinition(
+    val id: String,
+    val format: String,
+    val scope: ChatChannelScope = ChatChannelScope.SERVER,
+    val radius: Double? = null,
+    val permission: String? = null,
+    val mentions: Boolean = true,
+) {
+    init {
+        require(id.matches(Regex("[a-z][a-z0-9_-]{0,31}"))) { "Invalid chat channel id" }
+        require(format.isNotBlank()) { "Chat channel format must not be blank" }
+        require(scope != ChatChannelScope.RADIUS || radius?.let { it in 1.0..10_000.0 } == true) {
+            "Radius channels require a radius between 1 and 10000"
+        }
+        require(permission == null || permission.isNotBlank()) { "Chat channel permission must not be blank" }
+    }
+}
+
+public interface ChatService {
+    public fun channels(): Set<String>
+    public fun activeChannel(playerId: UUID): String
+    public fun select(playerId: UUID, channel: String): Boolean
+    /** Addon channels are local runtime registrations and must be closed when the addon disables. */
+    public fun register(channel: ChatChannelDefinition): AutoCloseable
 }
 
 public interface NetworkService {
@@ -106,7 +219,12 @@ public data class MaintenanceWindow(
 )
 
 public sealed interface MaintenanceUpdate {
-    public data class Enable(val server: String?, val reason: String, val at: Instant = Instant.now()) : MaintenanceUpdate
+    public data class Enable(
+        val server: String?,
+        val reason: String,
+        val at: Instant = Instant.now(),
+        val scheduledEnd: Instant? = null,
+    ) : MaintenanceUpdate
     public data class Disable(val server: String?) : MaintenanceUpdate
     public data class Allow(val playerId: UUID) : MaintenanceUpdate
     public data class Disallow(val playerId: UUID) : MaintenanceUpdate

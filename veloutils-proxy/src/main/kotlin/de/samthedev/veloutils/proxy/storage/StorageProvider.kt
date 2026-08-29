@@ -75,6 +75,13 @@ public object SchemaMigrations {
             "CREATE INDEX IF NOT EXISTS idx_player_identities_name ON player_identities(normalized_name)",
             "CREATE INDEX IF NOT EXISTS idx_punishments_target_created ON punishments(target_uuid, created_at)",
             "CREATE INDEX IF NOT EXISTS idx_reports_status_created ON reports(status, created_at)",
+        )), Migration(3, listOf(
+            """CREATE TABLE IF NOT EXISTS message_ignores (
+                owner_uuid VARCHAR(36) NOT NULL, ignored_uuid VARCHAR(36) NOT NULL,
+                ignored_name VARCHAR(16) NOT NULL, created_at BIGINT NOT NULL,
+                PRIMARY KEY(owner_uuid, ignored_uuid)
+            )""".trimIndent(),
+            "CREATE INDEX IF NOT EXISTS idx_message_ignores_owner ON message_ignores(owner_uuid, created_at)",
         )))
     }
 }

@@ -1,5 +1,21 @@
 config-version: 1
+# Use the exact Velocity registered-server name for per-server selectors/placeholders.
+# Standalone servers may leave this blank.
+server-id: ""
 heartbeat: 10s
+modules:
+  # Local AFK is standalone-safe and disabled unless explicitly selected.
+  afk: false
+  # Local announcements are separate from proxy-wide announcements.
+  announcements: false
+  chat: false
+  presentation: false
+  messaging: false
+  # Enable together with authenticated proxy moderation for mute enforcement.
+  moderation: false
+  placeholders: true
+  staff-chat: true
+  network-alerts: true
 compatibility:
   legacy-permissions:
     enabled: true

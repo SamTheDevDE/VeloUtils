@@ -1,8 +1,32 @@
 # Commands and permissions
 
-VeloUtils uses fixed, capability-based permissions for built-in features. Custom commands use the permission written in `commands.yml`. VeloUtils does not grant permissions; configure them with Velocity's permission provider, such as LuckPerms.
+[Documentation](README.md) · [Configuration](configuration.md) · [Modules](modules.md)
 
-All commands support console unless noted. Buttons become readable command suggestions in console output.
+This page lists every VeloUtils command and the permission needed to use it. On Velocity, permissions normally come from LuckPerms or another permission plugin. VeloUtils does not automatically give players staff access.
+
+How to read command examples:
+
+- `<player>` means the value is required.
+- `[page]` means the value is optional.
+- "Player" means the command must be run in game.
+- "Both" means a player or the console can run it.
+- A "known player" can be online or someone VeloUtils has seen before.
+
+All commands support console unless the table says "Player." Clickable buttons become normal command suggestions in console output.
+
+Common aliases include `/vu` for `/veloutils`, `/tell`, `/w`, and `/whisper` for `/msg`, `/r` for `/reply`, and `/ch` for `/channel`. Configured network commands may define their own aliases in `commands.yml`.
+
+## Useful first commands
+
+| Command | When to use it |
+|---|---|
+| `/veloutils status` | Check whether VeloUtils and connected backends are healthy |
+| `/veloutils config validate` | Check your configuration for errors |
+| `/veloutils config diff` | See new settings that are missing from an older config |
+| `/serverinfo <server>` | Check one Velocity server and its backend connection |
+| `/maintenance status` | Check active or scheduled maintenance |
+
+Jump to [Administration](#administration), [Network](#network), [Maintenance and staff](#maintenance-and-staff), [Reports](#reports), [Moderation](#moderation), [Paper/Folia commands](#paperfolia-commands), or the [complete permission list](#complete-permission-reference).
 
 ## Administration
 
@@ -16,7 +40,7 @@ All commands support console unless noted. Buttons become readable command sugge
 | `/veloutils config validate` | Parse YAML and MiniMessage without changing live state | `veloutils.admin.config` | Both |
 | `/veloutils config diff` | List bundled settings missing locally | `veloutils.admin.config` | Both |
 
-Example: `/vu config validate`. Most settings require a restart. Reload only replaces message templates after the full validation succeeds.
+Example: `/vu config validate`. Most settings require a restart. `/veloutils reload` only applies changed messages.
 
 ## Network
 
@@ -40,13 +64,15 @@ Examples: `/find Alex`, `/network 2`, `/send Alex survival`. `/serverexecute` ex
 | `/maintenance status` | Show global/server state and allowlist size | `veloutils.maintenance.manage` | Both |
 | `/maintenance enable [global\|server] [reason]` | Enable persistent maintenance | `veloutils.maintenance.manage` | Both |
 | `/maintenance disable [global\|server]` | Disable maintenance | `veloutils.maintenance.manage` | Both |
+| `/maintenance schedule <global\|server> <delay> <duration\|permanent> <reason>` | Persist a future maintenance window with countdowns | `veloutils.maintenance.manage` | Both |
+| `/maintenance cancel <global\|server>` | Cancel a future maintenance window | `veloutils.maintenance.manage` | Both |
 | `/maintenance allow <known-player>` | Add an online or known offline player | `veloutils.maintenance.manage` | Both |
 | `/maintenance disallow <known-player>` | Remove a player from the allowlist | `veloutils.maintenance.manage` | Both |
 | `/stafflist [page]` | List tracked online staff | `veloutils.staff.list.view` | Both |
 | `/stafftime` | Show your last seven days of time | `veloutils.staff.time.view.self` | Player |
 | `/stafftime <known-player>` | Show another member's tracked time | `veloutils.staff.time.view.others` | Both |
 
-Examples: `/maintenance enable global Database work`, `/stafftime Alex`.
+Examples: `/maintenance enable global Database work`, `/maintenance schedule survival 10m 30m Update`, `/stafftime Alex`.
 
 ## Reports
 
@@ -65,7 +91,7 @@ Examples: `/reports open 2`, `/reports close 18 Reviewed evidence`. New-report n
 
 ## Moderation
 
-Known-player arguments accept online players, cached names, and UUIDs recorded by VeloUtils. IDs may be written as `41` or `#41`.
+A player name may refer to someone online or a name VeloUtils has seen before. Punishment IDs may be written as `41` or `#41`.
 
 | Command | Purpose | Permission | Sender |
 |---|---|---|---|
@@ -83,21 +109,32 @@ Known-player arguments accept online players, cached names, and UUIDs recorded b
 | `/checkban <player>` | List effective UUID/IP bans | `veloutils.moderation.ban.view` | Both |
 | `/punishment <id>` | Full punishment and revocation audit | `veloutils.moderation.punishment.view` | Both |
 
-Examples: `/tempban Alex 3d Abuse`, `/unban Alex Appeal accepted`, `/punishment 41`. Durations accept `10m`, `2h`, `3d`, or `1w`. Self-targeting displays an expiring Confirm/Cancel prompt unless the sender has `veloutils.moderation.self-punish`. IP bans and kicks require an online target. Mute commands require authenticated bridge messaging.
+Examples: `/tempban Alex 3d Abuse`, `/unban Alex Appeal accepted`, `/punishment 41`. Durations accept `10m`, `2h`, `3d`, or `1w`. Trying to punish yourself shows a temporary Confirm/Cancel prompt unless you have the self-punishment bypass permission. IP bans and kicks need the target to be online. Network mutes need the Paper/Folia bridge and bridge authentication.
 
-## Backend bridge
+## Paper/Folia commands
 
 | Command | Purpose | Permission | Sender |
 |---|---|---|---|
 | `/sc <message>` | Staff chat with delivery result | `veloutils.chat.staff.use` | Player |
 | `/ac <message>` | Admin chat with delivery result | `veloutils.chat.admin.use` | Player |
-| `/vualert <message>` | Authenticated network alert | `veloutils.alert.broadcast` | Both; console needs an online carrier |
+| `/vualert <message>` | Authenticated network alert | `veloutils.alert.broadcast` | Both (console needs an online player) |
+| `/afk` | Toggle local AFK state when the module is enabled | `veloutils.afk.toggle` | Player |
+| `/chat <mute\|unmute\|clear>` | Manage standalone local chat | `veloutils.chat.manage` | Both |
+| `/channel [channel]` | List or select server/radius/network chat channels | Channel-specific permission | Player |
+| `/msg <player> <message>` | Send a local or cross-server private message | `veloutils.messaging.use` | Player |
+| `/reply <message>` | Reply to the most recent partner | `veloutils.messaging.use` | Player |
+| `/ignore <known-player>` | Persistently ignore a UUID locally and across the network | `veloutils.messaging.use` | Player |
+| `/unignore <known-player>` | Remove a persistent ignore | `veloutils.messaging.use` | Player |
+| `/ignorelist` | List persistent ignored identities | `veloutils.messaging.use` | Player |
+| `/socialspy` | Toggle local private-message observation | `veloutils.messaging.socialspy` | Player |
 
 Recipients need `veloutils.chat.staff.receive` or `veloutils.chat.admin.receive`. The bridge reports permission, module, validation, recipient, and timeout failures instead of failing silently.
 
-## Permission reference
+Cross-server messaging and network-global chat require their module to be enabled on both the proxy and participating backend. Local messaging and server/radius chat continue to work on a standalone Paper/Folia server.
 
-Velocity permissions default to false unless a provider grants them. Bridge sender permissions default to server operators.
+## Complete permission reference
+
+Velocity permissions are denied until your permission plugin grants them. Paper/Folia command permissions default to server operators unless the table or `plugin.yml` says otherwise.
 
 | Permission | Capability | Legacy alias |
 |---|---|---|
@@ -149,6 +186,15 @@ Velocity permissions default to false unless a provider grants them. Bridge send
 | `veloutils.moderation.ip.view` | Include IP bans in checks and open their details | None |
 | `veloutils.moderation.self-punish` | Skip self-target confirmation | None |
 | `veloutils.alert.broadcast` | Network alerts | `veloutils.bridge.alert` |
+| `veloutils.afk.toggle` | Toggle personal AFK state | None |
+| `veloutils.afk.bypass` | Ignore automatic AFK state and kicks | None |
+| `veloutils.chat.manage` | Mute, unmute, or clear local chat | None |
+| `veloutils.chat.mute.bypass` | Speak while local chat is muted | None |
+| `veloutils.chat.cooldown.bypass` | Bypass local cooldown/duplicate checks | None |
+| `veloutils.chat.local` | Use the bundled radius channel | None |
+| `veloutils.chat.global.use` | Use network-global chat | None |
+| `veloutils.messaging.use` | Use local/network private messaging | None |
+| `veloutils.messaging.socialspy` | Observe local private-message deliveries | None |
 | `veloutils.server-access.bypass` | Bypass all server rules | None |
 | Configured per-server node | Enter that server | None |
 

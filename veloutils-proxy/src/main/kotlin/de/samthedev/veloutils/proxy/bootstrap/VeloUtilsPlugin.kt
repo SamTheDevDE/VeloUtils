@@ -28,8 +28,10 @@ import de.samthedev.veloutils.proxy.command.ConfiguredMessageCommand
 import de.samthedev.veloutils.proxy.config.ConfigRepository
 import de.samthedev.veloutils.proxy.config.StorageType
 import de.samthedev.veloutils.proxy.messaging.ProxyProtocolGateway
+import de.samthedev.veloutils.proxy.messaging.MessagingPreferencesRepository
 import de.samthedev.veloutils.proxy.maintenance.MaintenanceListener
 import de.samthedev.veloutils.proxy.maintenance.PersistentMaintenanceService
+import de.samthedev.veloutils.proxy.maintenance.MaintenanceScheduler
 import de.samthedev.veloutils.proxy.report.PersistentReportService
 import de.samthedev.veloutils.proxy.moderation.IpAddressHasher
 import de.samthedev.veloutils.proxy.moderation.ModerationEnforcement
@@ -42,6 +44,7 @@ import de.samthedev.veloutils.api.MaintenanceService
 import de.samthedev.veloutils.api.StaffService
 import de.samthedev.veloutils.api.ReportService
 import de.samthedev.veloutils.api.ModerationService
+import de.samthedev.veloutils.api.ModuleService
 import de.samthedev.veloutils.proxy.network.BridgeStatusRegistry
 import de.samthedev.veloutils.proxy.network.VelocityNetworkService
 import de.samthedev.veloutils.proxy.network.ServerAccessListener
@@ -54,6 +57,13 @@ import de.samthedev.veloutils.proxy.player.PlayerIdentityService
 import de.samthedev.veloutils.proxy.moderation.SelfPunishmentConfirmations
 import de.samthedev.veloutils.proxy.util.ConfiguredMessages
 import de.samthedev.veloutils.common.RemoteCommandPolicy
+import de.samthedev.veloutils.common.Permissions
+import de.samthedev.veloutils.core.placeholder.PlaceholderFacade
+import de.samthedev.veloutils.core.module.ModuleDescriptor
+import de.samthedev.veloutils.core.module.ModuleFactory
+import de.samthedev.veloutils.core.module.ModuleId
+import de.samthedev.veloutils.core.module.ModuleRuntime
+import de.samthedev.veloutils.core.module.ResourceModule
 import de.samthedev.veloutils.proxy.integration.DiscordWebhookService
 import de.samthedev.veloutils.proxy.integration.LimboFallbackAdapter
 import de.samthedev.veloutils.proxy.integration.ModrinthUpdateProvider
@@ -79,16 +89,18 @@ public class VeloUtilsPlugin @Inject constructor(
     private val config = ConfigRepository(dataDirectory)
     private val messages = ConfiguredMessages(dataDirectory.resolve("messages.yml"))
     private val bridgeStatuses = BridgeStatusRegistry()
+    private val placeholderFacade = PlaceholderFacade()
     private var storage: StorageProvider? = null
     private var protocolGateway: ProxyProtocolGateway? = null
     private val publishedApi = AtomicReference<VeloUtilsApi?>()
     private val ownedResources = CopyOnWriteArrayList<AutoCloseable>()
 
-    override val network: NetworkService get() = api().network
-    override val maintenance: MaintenanceService get() = api().maintenance
-    override val staff: StaffService get() = api().staff
-    override val reports: ReportService get() = api().reports
-    override val moderation: ModerationService get() = api().moderation
+    override val network: NetworkService get() = checkNotNull(api().network)
+    override val modules: ModuleService get() = api().modules
+    override val maintenance: MaintenanceService? get() = api().maintenance
+    override val staff: StaffService? get() = api().staff
+    override val reports: ReportService? get() = api().reports
+    override val moderation: ModerationService? get() = api().moderation
 
     private fun api(): VeloUtilsApi = checkNotNull(publishedApi.get()) { "VeloUtils has not finished initializing" }
 
@@ -114,6 +126,10 @@ public class VeloUtilsPlugin @Inject constructor(
                     ProtocolSecurity(snapshot.protocol.sharedSecret?.toByteArray(), snapshot.protocol.requireAuthentication),
                     maximumPayloadBytes = snapshot.protocol.maximumPayloadBytes,
                 )
+                val activeStorage = createStorage(snapshot.storage).also { it.initialize() }
+                storage = activeStorage
+                val identities = PlayerIdentityService(activeStorage, scope).also { it.loadRecent() }
+                val messagingPreferences = if (snapshot.modules.messaging) MessagingPreferencesRepository(activeStorage) else null
                 val gateway = ProxyProtocolGateway(
                     codec,
                     bridgeStatuses,
@@ -123,6 +139,11 @@ public class VeloUtilsPlugin @Inject constructor(
                     proxy,
                     messages,
                     snapshot.modules.staffChat,
+                    snapshot.modules.chat,
+                    snapshot.modules.messaging,
+                    messagingPreferences,
+                    identities,
+                    scope,
                     eventSink,
                     permissions,
                     snapshot.protocol.requireAuthentication,
@@ -132,9 +153,6 @@ public class VeloUtilsPlugin @Inject constructor(
                 proxy.eventManager.register(this@VeloUtilsPlugin, gateway)
 
                 val network = VelocityNetworkService(proxy, bridgeStatuses)
-                val activeStorage = createStorage(snapshot.storage).also { it.initialize() }
-                storage = activeStorage
-                val identities = PlayerIdentityService(activeStorage, scope).also { it.loadRecent() }
                 proxy.eventManager.register(this@VeloUtilsPlugin, identities)
                 registerCommands(network, gateway, snapshot, permissions)
                 if (snapshot.modules.networkCommands) {
@@ -155,18 +173,47 @@ public class VeloUtilsPlugin @Inject constructor(
                     }
                 }
                 var maintenanceService: PersistentMaintenanceService? = null
-                var maintenanceApi: MaintenanceService = DisabledMaintenanceService()
-                var reportApi: ReportService = DisabledReportService()
-                var moderationApi: ModerationService = DisabledModerationService()
-                var staffApi: StaffService = DisabledStaffService()
+                var maintenanceApi: MaintenanceService? = null
+                var reportApi: ReportService? = null
+                var moderationApi: ModerationService? = null
+                var staffApi: StaffService? = null
                 if (snapshot.modules.maintenance) {
                     val maintenance = PersistentMaintenanceService(activeStorage).also { it.load() }
                     maintenanceService = maintenance
                     maintenanceApi = maintenance
+                    val maintenanceScheduler = MaintenanceScheduler(
+                        activeStorage,
+                        maintenance,
+                        scope,
+                        broadcastSink = { message ->
+                            proxy.allPlayers.forEach { it.sendMessage(message) }
+                            proxy.consoleCommandSource.sendMessage(message)
+                        },
+                        preTransferBefore = snapshot.maintenanceTransfer.before.takeIf {
+                            snapshot.maintenanceTransfer.enabled
+                        },
+                        transferSink = { scheduled ->
+                            val candidates = proxy.allPlayers.filter { player ->
+                                !permissions.has(player, Permissions.MAINTENANCE_BYPASS) &&
+                                    (scheduled.server == null || player.currentServer
+                                        .map { it.serverInfo.name.equals(scheduled.server, true) }
+                                        .orElse(false))
+                            }
+                            candidates.forEach { player ->
+                                scope.launch {
+                                    network.connect(player.uniqueId, snapshot.maintenanceTransfer.destinations)
+                                }
+                            }
+                        },
+                    ).also {
+                        it.load()
+                        it.start()
+                    }
+                    ownedResources += maintenanceScheduler
                     proxy.eventManager.register(this@VeloUtilsPlugin, MaintenanceListener(maintenance, messages))
                     proxy.commandManager.register(
                         proxy.commandManager.metaBuilder("maintenance").plugin(this@VeloUtilsPlugin).build(),
-                        MaintenanceCommand(proxy, maintenance, messages, identities, permissions, scope, eventSink),
+                        MaintenanceCommand(proxy, maintenance, maintenanceScheduler, messages, identities, permissions, scope, eventSink),
                     )
                 }
                 if (snapshot.modules.reports) {
@@ -245,13 +292,60 @@ public class VeloUtilsPlugin @Inject constructor(
                     proxy.eventManager.register(this@VeloUtilsPlugin, LimboFallbackAdapter(proxy, snapshot.limbo.server))
                     logger.info("[VeloUtils] Limbo fallback adapter targets {}.", snapshot.limbo.server)
                 }
-                if (snapshot.modules.alerts) {
-                    ownedResources += RotatingAlertService(proxy, snapshot.alerts, eventSink, scope)
+                val announcementsModule = ModuleId("announcements")
+                ownedResources += ModuleRuntime(
+                    mapOf(
+                        ModuleDescriptor(announcementsModule) to ModuleFactory {
+                            ResourceModule { RotatingAlertService(proxy, snapshot.alerts, eventSink, scope) }
+                        },
+                    ),
+                ).also { runtime ->
+                    runtime.start(if (snapshot.modules.alerts) setOf(announcementsModule) else emptySet())
                 }
                 if (snapshot.updates.enabled) {
                     ownedResources += ModrinthUpdateProvider(snapshot.updates, BuildInfo.VERSION, scope, logger).also { it.start() }
                 }
-                publishedApi.set(ApiServices(network, maintenanceApi, staffApi, reportApi, moderationApi))
+                ownedResources += placeholderFacade.register("veloutils") { context ->
+                    buildMap {
+                        put("network_online", proxy.playerCount.toString())
+                        put("server", context.server ?: "proxy")
+                        put("maintenance", (maintenanceService?.snapshot()?.global != null).toString())
+                        context.server?.lowercase()?.let { serverName ->
+                            put("server_online", proxy.getServer(serverName).isPresent.toString())
+                            put("server_players", proxy.getServer(serverName).map { it.playersConnected.size }.orElse(0).toString())
+                        }
+                    }
+                }
+                val knownModules = setOf(
+                    "maintenance", "reports", "staff", "staff-chat", "chat", "messaging", "moderation", "motd", "server-access",
+                    "network", "discord", "announcements", "placeholders",
+                )
+                val enabledModules = buildSet {
+                    add("placeholders")
+                    if (snapshot.modules.maintenance) add("maintenance")
+                    if (snapshot.modules.reports) add("reports")
+                    if (snapshot.modules.staff) add("staff")
+                    if (snapshot.modules.staffChat) add("staff-chat")
+                    if (snapshot.modules.chat) add("chat")
+                    if (snapshot.modules.messaging) add("messaging")
+                    if (snapshot.modules.moderation) add("moderation")
+                    if (snapshot.modules.motd) add("motd")
+                    if (snapshot.modules.serverAccess) add("server-access")
+                    if (snapshot.modules.networkCommands) add("network")
+                    if (snapshot.modules.discord) add("discord")
+                    if (snapshot.modules.alerts) add("announcements")
+                }
+                publishedApi.set(
+                    ApiServices(
+                        StaticModuleService(enabledModules, knownModules),
+                        network,
+                        maintenanceApi,
+                        staffApi,
+                        reportApi,
+                        moderationApi,
+                        placeholderFacade,
+                    ),
+                )
                 logger.info("[VeloUtils] Started successfully with {} registered servers.", proxy.allServers.size)
             }.onFailure { failure ->
                 logger.error("[VeloUtils] Startup failed: {} Check the VeloUtils configuration and database connectivity.", failure.message, failure)

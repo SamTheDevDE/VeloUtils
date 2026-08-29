@@ -32,6 +32,7 @@ plugins {
 dependencies {
     implementation(project(":veloutils-api"))
     implementation(project(":veloutils-common"))
+    implementation(project(":veloutils-core"))
     implementation(project(":veloutils-protocol"))
     compileOnly("com.velocitypowered:velocity-api:4.1.0-SNAPSHOT")
     implementation("org.spongepowered:configurate-yaml:4.2.0")
@@ -54,7 +55,7 @@ tasks.processResources {
 
 tasks.named<ShadowJar>("shadowJar") {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
-    archiveBaseName.set("veloutils-proxy")
+    archiveBaseName.set("VeloUtils-Velocity")
     archiveClassifier.set("")
     mergeServiceFiles()
     exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")

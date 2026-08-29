@@ -39,8 +39,10 @@ public class PersistentMaintenanceService(
             }
             MaintenanceSnapshot(windows[GLOBAL_SCOPE], windows.filterKeys { it != GLOBAL_SCOPE }, allowed)
         }
-        loaded.global?.let { state.update(MaintenanceUpdate.Enable(null, it.reason, it.activatedAt)) }
-        loaded.servers.forEach { (server, window) -> state.update(MaintenanceUpdate.Enable(server, window.reason, window.activatedAt)) }
+        loaded.global?.let { state.update(MaintenanceUpdate.Enable(null, it.reason, it.activatedAt, it.scheduledEnd)) }
+        loaded.servers.forEach { (server, window) ->
+            state.update(MaintenanceUpdate.Enable(server, window.reason, window.activatedAt, window.scheduledEnd))
+        }
         loaded.allowedPlayers.forEach { state.update(MaintenanceUpdate.Allow(it)) }
     }
 
@@ -66,7 +68,7 @@ public class PersistentMaintenanceService(
                         it.setString(3, request.reason.trim())
                         it.setLong(4, request.at.toEpochMilli())
                         it.setObject(5, null)
-                        it.setObject(6, null)
+                        request.scheduledEnd?.let { end -> it.setLong(6, end.toEpochMilli()) } ?: it.setObject(6, null)
                         it.executeUpdate()
                     }
                 }

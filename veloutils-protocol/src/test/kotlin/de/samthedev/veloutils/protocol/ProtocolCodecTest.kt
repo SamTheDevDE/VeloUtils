@@ -72,4 +72,25 @@ class ProtocolCodecTest {
             assertEquals(payload, Json.decodeFromJsonElement<DeliveryResponsePayload>(accepted.envelope.payload))
         }
     }
+
+    @Test fun `private message delivery round trips with explicit identities`() {
+        val codec = ProtocolCodec(ProtocolSecurity(secret, requireAuthentication = true), clock)
+        val payload = PrivateMessageDeliveryPayload(
+            "00000000-0000-0000-0000-000000000001", "Sender",
+            "00000000-0000-0000-0000-000000000002", "Target", "hello",
+        )
+        val packet = codec.envelope(PacketType.PRIVATE_MESSAGE_DELIVERY, newRequestId(), Json.encodeToJsonElement(payload).jsonObject)
+        val accepted = assertIs<DecodeResult.Accepted>(codec.decode(codec.encode(packet)))
+        assertEquals(payload, Json.decodeFromJsonElement<PrivateMessageDeliveryPayload>(accepted.envelope.payload))
+    }
+
+    @Test fun `ignore synchronization round trips with UUID entries`() {
+        val codec = ProtocolCodec(ProtocolSecurity(secret, requireAuthentication = true), clock)
+        val payload = IgnoreListResponsePayload(
+            listOf(IgnoreEntryPayload("00000000-0000-0000-0000-000000000002", "Target")),
+        )
+        val packet = codec.envelope(PacketType.IGNORE_LIST_RESPONSE, newRequestId(), Json.encodeToJsonElement(payload).jsonObject)
+        val accepted = assertIs<DecodeResult.Accepted>(codec.decode(codec.encode(packet)))
+        assertEquals(payload, Json.decodeFromJsonElement<IgnoreListResponsePayload>(accepted.envelope.payload))
+    }
 }

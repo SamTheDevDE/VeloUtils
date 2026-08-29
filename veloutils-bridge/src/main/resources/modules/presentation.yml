@@ -1,0 +1,59 @@
+config-version: 1
+refresh-interval: 1s
+tab:
+  enabled: true
+designs:
+  default:
+    priority: 0
+    servers: []
+    worlds: []
+    groups: []
+    permissions: []
+    # PlaceholderAPI values use {papi_<expansion>_<identifier>}, for example
+    # {papi_luckperms_prefix}. Values are escaped before MiniMessage parsing.
+    header: "<gradient:#7c3aed:#a855f7><bold>VeloUtils</bold></gradient>"
+    footer: "<gray>{veloutils_network_online} players online</gray>"
+    player-list-name: "<white>{player}</white>"
+    # Lower values sort first. Group/permission-specific designs can override this.
+    sort-order: 1000
+scoreboard:
+  enabled: false
+  definitions:
+    default:
+      priority: 0
+      servers: []
+      worlds: []
+      groups: []
+      permissions: []
+      title: "<gradient:#7c3aed:#a855f7><bold>VeloUtils</bold></gradient>"
+      lines:
+        - "<gray>Player:</gray> <white>{player}</white>"
+        - "<gray>Server:</gray> <white>{server}</white>"
+        - "<gray>Online:</gray> <white>{veloutils_network_online}</white>"
+nametags:
+  enabled: false
+  definitions:
+    default:
+      priority: 0
+      servers: []
+      worlds: []
+      groups: []
+      permissions: []
+      prefix: ""
+      suffix: "<gray>{afk_indicator}</gray>"
+      color: white
+      visibility: always
+      collision: always
+      sort-order: 1000
+bossbar:
+  # Persistent baseline; addons can layer scheduled temporary bars through PresentationService.
+  enabled: false
+  priority: 0
+  servers: []
+  worlds: []
+  groups: []
+  permissions: []
+  text: "<gradient:#7c3aed:#a855f7>VeloUtils</gradient>"
+  progress: 1.0
+  color: purple
+  overlay: progress
