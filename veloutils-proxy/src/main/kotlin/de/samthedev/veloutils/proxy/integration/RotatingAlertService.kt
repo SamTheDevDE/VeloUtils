@@ -9,7 +9,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.minimessage.MiniMessage
+import de.samthedev.veloutils.proxy.util.ConfiguredMiniMessage
 import kotlin.random.Random
 
 public class RotatingAlertService(
@@ -19,7 +19,7 @@ public class RotatingAlertService(
     scope: CoroutineScope,
     random: Random = Random.Default,
 ) : AutoCloseable {
-    private val messages = config.messages.map(MiniMessage.miniMessage()::deserialize)
+    private val messages = config.messages.map(ConfiguredMiniMessage::deserialize)
     private val plainMessages = config.messages
     private val rotation = messages.takeIf(List<Component>::isNotEmpty)?.let {
         AlertRotation(it.size, config.randomOrder, random)

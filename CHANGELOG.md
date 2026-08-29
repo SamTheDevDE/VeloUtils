@@ -40,6 +40,8 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 - Multiline TAB layouts, supported player-list ordering, and scheduled/targeted temporary bossbars through the public API.
 - Optional one-shot pre-maintenance transfer with bypass exclusion and normal server-access authorization.
 - A centralized `docs/` site with a plain-language installation guide, server-owner module/configuration references, and clearly separated developer and audit documentation.
+- Strict, cached MiniMessage rendering for MOTDs and legacy-formatted server-list sample players with dynamic placeholders.
+- Permission-controlled player chat colors, decorations, and gradients using a presentation-only tag allowlist.
 
 ### Fixed
 
@@ -49,6 +51,9 @@ This project follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) an
 - Preserve YAML comments and formatting by avoiding normal-startup rewrites. Migrations now create backups.
 - Remove ignored configuration fields and the obsolete `maintenance.yml` resource.
 - Remove an undocumented extra per-destination permission check from configured move commands.
+- Fall back from missing disk configuration/message keys to bundled defaults without rewriting administrator YAML.
+- Return direct safe components for unknown message keys and log each missing key only once.
+- Validate MOTD and sample-player MiniMessage paths during startup/reload instead of failing on a proxy ping.
 
 ### Known limitations
 

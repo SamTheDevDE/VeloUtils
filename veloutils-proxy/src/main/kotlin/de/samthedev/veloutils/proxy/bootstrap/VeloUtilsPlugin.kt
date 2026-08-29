@@ -39,6 +39,7 @@ import de.samthedev.veloutils.proxy.moderation.PersistentModerationService
 import de.samthedev.veloutils.proxy.staff.VelocityStaffService
 import de.samthedev.veloutils.api.ReportType
 import de.samthedev.veloutils.api.VeloUtilsApi
+import de.samthedev.veloutils.api.PlaceholderContext
 import de.samthedev.veloutils.api.NetworkService
 import de.samthedev.veloutils.api.MaintenanceService
 import de.samthedev.veloutils.api.StaffService
@@ -87,7 +88,9 @@ public class VeloUtilsPlugin @Inject constructor(
 ) : VeloUtilsApi {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val config = ConfigRepository(dataDirectory)
-    private val messages = ConfiguredMessages(dataDirectory.resolve("messages.yml"))
+    private val messages = ConfiguredMessages(dataDirectory.resolve("messages.yml"), warning = { warning ->
+        logger.warn("[VeloUtils] {}", warning)
+    })
     private val bridgeStatuses = BridgeStatusRegistry()
     private val placeholderFacade = PlaceholderFacade()
     private var storage: StorageProvider? = null
@@ -147,6 +150,7 @@ public class VeloUtilsPlugin @Inject constructor(
                     eventSink,
                     permissions,
                     snapshot.protocol.requireAuthentication,
+                    snapshot.playerFormatting,
                 )
                 protocolGateway = gateway
                 proxy.channelRegistrar.register(ProxyProtocolGateway.CHANNEL)
@@ -285,7 +289,13 @@ public class VeloUtilsPlugin @Inject constructor(
                 if (snapshot.modules.motd) {
                     proxy.eventManager.register(
                         this@VeloUtilsPlugin,
-                        MotdListener(proxy, snapshot.motd, dataDirectory) { maintenanceService?.snapshot() },
+                        MotdListener(
+                            proxy,
+                            snapshot.motd,
+                            dataDirectory,
+                            maintenance = { maintenanceService?.snapshot() },
+                            placeholderValues = { placeholderFacade.resolve(PlaceholderContext(server = "proxy")) },
+                        ),
                     )
                 }
                 if (snapshot.limbo.enabled) {

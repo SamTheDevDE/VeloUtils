@@ -16,6 +16,10 @@ VeloUtils tries to preserve existing data and creates a `.pre-migration.bak` cop
 6. Check the permission changes below.
 7. Restart after configuration changes. `/veloutils reload` only applies changed messages.
 
+Additive settings do not force a YAML rewrite or config-version bump. VeloUtils layers the bundled defaults underneath an existing file at runtime, while `/veloutils config diff` reports the paths that are still absent on disk. For example, an older `messages.yml` without `chat.global-format` immediately uses the bundled current format; you can then copy that key into the file only if you want to customize it. Versioned structural migrations remain explicit, and any migration that edits a YAML file creates a `.pre-migration.bak` backup.
+
+Player-entered MiniMessage formatting is safe-by-default after this update. The new `chat.player-formatting` settings are supplied by the bundled `config.yml` when absent, so existing installations do not need an automatic rewrite. Grant the new `veloutils.chat.format.colors`, `.decorations`, `.gradients`, or `.full` permissions only to the groups that should use those presentation formats. The `full` permission still excludes interactive and data-driven tags.
+
 ## Important owner changes
 
 - The backend file is now `VeloUtils-Paper-<version>.jar` and works on both Paper and Folia.

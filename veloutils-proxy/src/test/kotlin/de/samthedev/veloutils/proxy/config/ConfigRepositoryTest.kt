@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
 package de.samthedev.veloutils.proxy.config
 
+import de.samthedev.veloutils.proxy.command.ConfiguredCommandLoader
+import de.samthedev.veloutils.proxy.util.ConfiguredMessages
 import org.spongepowered.configurate.yaml.YamlConfigurationLoader
 import java.nio.file.Files
 import kotlin.io.path.writeText
@@ -30,6 +32,9 @@ class ConfigRepositoryTest {
         val reloaded = YamlConfigurationLoader.builder().path(directory.resolve("config.yml")).build().load()
 
         assertFalse(snapshot.protocol.requireAuthentication)
+        assertTrue(snapshot.playerFormatting.enabled)
+        assertFalse(snapshot.playerFormatting.defaults.colors)
+        assertTrue(snapshot.serverAccessRules.isEmpty())
         assertEquals("keep-me", reloaded.node("custom-administrator-field").getString())
         assertEquals(1, reloaded.node("config-version").getInt())
         assertTrue(Files.exists(directory.resolve("messages.yml")))
@@ -71,7 +76,7 @@ class ConfigRepositoryTest {
                 permission: veloutils.message.discord
                 cooldown: 5s
                 messages:
-                  - "<gray>Discord: <click:open_url:'https://example.com'><aqua>Click here</aqua></click>"
+                  - "<gray>Discord: <click:open_url:'https://example.com'><aqua>Click here</aqua></click></gray>"
         """.trimIndent()
         directory.resolve("commands.yml").writeText(readable)
 
@@ -96,5 +101,27 @@ class ConfigRepositoryTest {
 
         val failure = assertFailsWith<ConfigValidationException> { ConfigRepository(directory).load() }
         assertTrue(failure.message.orEmpty().contains("official HTTPS Discord webhook"))
+    }
+
+    @Test
+    fun `invalid sample player MiniMessage identifies its exact index`() {
+        val directory = Files.createTempDirectory("veloutils-invalid-sample")
+        directory.resolve("config.yml").writeText(
+            "config-version: 1\nmotd:\n  sample-players:\n    - \"<red>valid</red>\"\n    - \"<red>missing close\"\n",
+        )
+
+        val failure = assertFailsWith<ConfigValidationException> { ConfigRepository(directory).load() }
+
+        assertTrue(failure.message.orEmpty().contains("config.yml: motd.sample-players[1]: invalid MiniMessage"))
+    }
+
+    @Test
+    fun `all bundled proxy MiniMessage templates validate`() {
+        val directory = Files.createTempDirectory("veloutils-bundled-templates")
+        val repository = ConfigRepository(directory)
+
+        repository.load()
+        ConfiguredMessages(directory.resolve("messages.yml")).validate()
+        ConfiguredCommandLoader.load(directory.resolve("commands.yml"))
     }
 }

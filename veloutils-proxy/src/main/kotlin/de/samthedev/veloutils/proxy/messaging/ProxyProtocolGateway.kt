@@ -38,6 +38,8 @@ import de.samthedev.veloutils.protocol.StatusPayload
 import de.samthedev.veloutils.protocol.negotiateProtocol
 import de.samthedev.veloutils.proxy.network.BridgeStatusRegistry
 import de.samthedev.veloutils.proxy.util.ConfiguredMessages
+import de.samthedev.veloutils.proxy.util.PlayerMessageRenderer
+import de.samthedev.veloutils.proxy.config.PlayerFormattingConfig
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.encodeToJsonElement
@@ -82,6 +84,7 @@ public class ProxyProtocolGateway(
     private val eventSink: NetworkEventSink,
     private val permissions: PermissionService,
     private val authenticatedMode: Boolean,
+    playerFormatting: PlayerFormattingConfig,
 ) : AutoCloseable {
     public companion object {
         public val CHANNEL: MinecraftChannelIdentifier = MinecraftChannelIdentifier.create("veloutils", "main")
@@ -94,6 +97,7 @@ public class ProxyProtocolGateway(
     }
     private val requests = RequestTracker(requestExecutor, maximumPending = 1_024)
     private val expectedResponders = ConcurrentHashMap<String, String>()
+    private val playerMessages = PlayerMessageRenderer(playerFormatting)
 
     public fun execute(server: RegisteredServer, command: String): CompletableFuture<CommandResponsePayload> {
         val validated = remoteCommands.validate(command)
@@ -389,12 +393,13 @@ public class ProxyProtocolGateway(
             return
         }
         val serverName = source.serverInfo.name
+        val body = playerMessages.render(message, playerMessages.capabilities(player::hasPermission))
         val playerComponent = Component.text(player.username, NamedTextColor.AQUA)
             .hoverEvent(HoverEvent.showText(Component.text("${player.username}\nServer: $serverName", NamedTextColor.GRAY)))
             .clickEvent(ClickEvent.suggestCommand("/find ${player.username}"))
         val rendered = messages.render(
             "staff-chat.${channel}-format",
-            mapOf("channel" to Component.text(channel), "player" to playerComponent, "server" to Component.text(serverName), "message" to Component.text(message)),
+            mapOf("channel" to Component.text(channel), "player" to playerComponent, "server" to Component.text(serverName), "message" to body),
         )
         val recipients = proxy.allPlayers.filter { permissions.has(it, receivePermission) }
         recipients.forEach { it.sendMessage(rendered) }
@@ -423,6 +428,7 @@ public class ProxyProtocolGateway(
         val playerComponent = Component.text(player.username, NamedTextColor.GRAY)
             .hoverEvent(HoverEvent.showText(Component.text("Server: $serverName", NamedTextColor.GRAY)))
             .clickEvent(ClickEvent.suggestCommand("/msg ${player.username} "))
+        val playerBody = playerMessages.render(message, playerMessages.capabilities(player::hasPermission))
         proxy.allPlayers.forEach { recipient ->
             val mention = "@${recipient.username}"
             val mentionPattern = Pattern.compile(
@@ -430,11 +436,11 @@ public class ProxyProtocolGateway(
             )
             val mentioned = mentionPattern.matcher(message).find()
             val body = if (mentioned) {
-                Component.text(message, NamedTextColor.WHITE).replaceText { builder ->
+                playerBody.replaceText { builder ->
                     builder.match(mentionPattern)
                         .replacement(Component.text(mention, NamedTextColor.YELLOW))
                 }
-            } else Component.text(message, NamedTextColor.WHITE)
+            } else playerBody
             recipient.sendMessage(
                 messages.render(
                     "chat.global-format",
@@ -448,7 +454,7 @@ public class ProxyProtocolGateway(
         proxy.consoleCommandSource.sendMessage(
             messages.render(
                 "chat.global-format",
-                mapOf("player" to playerComponent, "server" to Component.text(serverName), "message" to Component.text(message)),
+                mapOf("player" to playerComponent, "server" to Component.text(serverName), "message" to playerBody),
             ),
         )
         respond(

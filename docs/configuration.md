@@ -49,6 +49,8 @@ Validate changes with:
 
 `/veloutils reload` applies message text only. Restart for module, database, protocol, command, or scheduler changes.
 
+Existing YAML files are not rewritten just because a release adds a setting. At runtime VeloUtils reads the administrator file first and uses the bundled value for supported fixed settings when that path is absent. Keyed administrator collections such as custom commands, server-access rules, virtual hosts, and webhooks are not populated from bundled examples on an upgrade. `/veloutils config diff` still reports every missing disk path, so you can copy and customize new settings deliberately. A message key missing from both sources produces a safe red component and one concise console warning instead of a MiniMessage parsing failure. Explicit versioned migrations remain separate; a migration that edits a file creates a `.pre-migration.bak` copy first.
+
 | What you changed | How to apply it |
 |---|---|
 | `messages.yml` text | Run `/veloutils reload` |
@@ -128,6 +130,59 @@ Messages use MiniMessage formatting. Common examples:
 <bold>Bold text</bold>
 <gradient:#7c3aed:#a855f7>Gradient text</gradient>
 ```
+
+Administrator-controlled templates use strict MiniMessage, so opened tags must be closed. Their output capabilities differ by destination:
+
+| Location | MiniMessage behavior |
+|---|---|
+| MOTD | Full supported Adventure formatting |
+| Sample-player hover | MiniMessage converted to legacy client formatting |
+| Configured global chat format | Full supported Adventure formatting |
+| Player chat input | Restricted and permission controlled |
+| Staff chat format | Full supported Adventure formatting |
+| Announcements | Full supported Adventure formatting |
+
+The sample-player list is a protocol string rather than an Adventure component. VeloUtils precompiles each MiniMessage entry, inserts dynamic values as literal text, and serializes it with section-sign legacy formatting. Colors, RGB/gradients on modern clients, bold, italic, underline, and strikethrough are preserved as far as the client supports them. Hover and click events cannot work in the vanilla sample-player tooltip. Long or RGB-heavy entries can also be constrained by the connecting client's status-tooltip behavior.
+
+Example Velocity MOTD samples:
+
+```yaml
+motd:
+  sample-players:
+    - "<gradient:#7c3aed:#a855f7><bold>✦ Example Network ✦</bold></gradient>"
+    - "<gray>Players Online: <white>{players}</white>/<white>{max_players}</white></gray>"
+    - "<light_purple>➜</light_purple> <white>play.example.com</white>"
+```
+
+`{players}` and `{max_players}` are updated for every ping without reparsing the template. Registered VeloUtils plain-text placeholders, such as `{veloutils_network_online}`, are also available and are inserted safely.
+
+The trusted global chat template lives in `messages.yml` and may use normal MiniMessage formatting plus component placeholders:
+
+```yaml
+chat:
+  global-format: "<gradient:#7c3aed:#a855f7>[Global]</gradient> <player> <dark_gray>»</dark_gray> <white><message></white>"
+```
+
+`<player>`, `<server>`, and `<message>` are component insertion points. Player content is never concatenated into this template and cannot close its tags or restyle its player name, server label, or surrounding text.
+
+Player-entered formatting is configured separately in Velocity `config.yml`:
+
+```yaml
+chat:
+  player-formatting:
+    enabled: true
+    default:
+      colors: false
+      decorations: false
+      gradients: false
+    permissions:
+      colors: veloutils.chat.format.colors
+      decorations: veloutils.chat.format.decorations
+      gradients: veloutils.chat.format.gradients
+      full: veloutils.chat.format.full
+```
+
+With the default settings, `<red>Hello</red>` remains literal unless the sender has the corresponding permission. Colors include named and hex colors; decorations include bold, italic, underline, and strikethrough; gradients are separate. `full` means all of these safe presentation groups. It deliberately does not allow click, hover, insertion, font, selector, score, NBT, keybind, translatable, URL/action, newline, or reset tags. Unsupported tags stay literal, and malformed player input falls back to literal text. These permissions affect only player-entered global/staff chat, never the administrator's templates.
 
 Words inside braces are placeholders, such as `{player}`, `{server}`, or `{veloutils_network_online}`. Keep a placeholder exactly as written. PlaceholderAPI values start with `papi_`, for example `{papi_luckperms_prefix}`.
 

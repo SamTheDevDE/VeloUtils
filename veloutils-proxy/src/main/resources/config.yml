@@ -17,6 +17,21 @@ modules:
   discord: false
   alerts: true
 
+chat:
+  player-formatting:
+    # Player-entered MiniMessage is limited to the safe presentation tags below.
+    enabled: true
+    default:
+      colors: false
+      decorations: false
+      gradients: false
+    permissions:
+      colors: veloutils.chat.format.colors
+      decorations: veloutils.chat.format.decorations
+      gradients: veloutils.chat.format.gradients
+      # "full" means all safe presentation formats, never click/hover/data-driven tags.
+      full: veloutils.chat.format.full
+
 protocol:
   maximum-payload-bytes: 32768
   request-timeout: 5s
@@ -67,5 +82,6 @@ motd:
     - "<red><bold>Network maintenance</bold></red>\n<gray>{reason}</gray>"
   maximum-players: 1000
   sample-players:
-    - "VeloUtils on Velocity 4.1"
+    - "<gradient:#7c3aed:#a855f7><bold>✦ VeloUtils Network ✦</bold></gradient>"
+    - "<gray>Players Online: <white>{players}</white>/<white>{max_players}</white></gray>"
   favicon: ""

@@ -64,6 +64,25 @@ public data class MotdConfig(
     val virtualHosts: Map<String, List<String>>,
 )
 
+public data class PlayerFormattingPermissions(
+    val colors: String,
+    val decorations: String,
+    val gradients: String,
+    val full: String,
+)
+
+public data class PlayerFormattingDefaults(
+    val colors: Boolean,
+    val decorations: Boolean,
+    val gradients: Boolean,
+)
+
+public data class PlayerFormattingConfig(
+    val enabled: Boolean,
+    val defaults: PlayerFormattingDefaults,
+    val permissions: PlayerFormattingPermissions,
+)
+
 public data class DiscordConfig(
     val connectTimeout: Duration,
     val requestTimeout: Duration,
@@ -97,6 +116,7 @@ public data class ProxyConfig(
     val storage: StorageConfig,
     val moderation: ModerationConfig,
     val motd: MotdConfig,
+    val playerFormatting: PlayerFormattingConfig,
     val discord: DiscordConfig,
     val limbo: LimboConfig,
     val updates: UpdateConfig,

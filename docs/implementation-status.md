@@ -39,6 +39,7 @@ The first table shows features that are available now. The second explains limit
 | Limbo | The fallback server must already be registered in Velocity |
 | AFK | AFK state is local to each Paper/Folia backend and is not yet synchronized through Velocity |
 | Custom chat channels | Addons can add local channels. New network-wide channel types need matching proxy support |
+| Sample-player tooltip | MiniMessage is reduced to legacy text formatting; vanilla tooltips cannot provide component hover/click events, and client versions may render RGB/long entries differently |
 | Social spy | Each staff member must enable it again after reconnecting or restarting |
 | TAB layouts | Normal multiline layouts and sorting work, but VeloUtils does not create fake player entries or packet-based fixed grids |
 | Scoreboards | Use only one plugin to manage a player's scoreboard, otherwise the plugins can replace each other's display |

@@ -10,6 +10,8 @@ import java.util.concurrent.atomic.AtomicReference
 import java.util.UUID
 import java.net.URI
 import de.samthedev.veloutils.common.ServerAccessRule
+import de.samthedev.veloutils.proxy.util.ConfiguredMiniMessage
+import de.samthedev.veloutils.proxy.command.ConfiguredCommandLoader
 
 public class ConfigRepository(private val dataDirectory: Path) {
     public companion object {
@@ -62,8 +64,12 @@ public class ConfigRepository(private val dataDirectory: Path) {
     }.toMap()
 
     private fun readDocuments(migrate: Boolean): ProxyConfig {
-        val documents = FILES.associateWith { fileName -> loader(fileName).load() }
-        if (migrate) documents.forEach { (fileName, document) -> migrate(document, fileName) }
+        val documents = FILES.associateWith { fileName ->
+            loader(fileName).load().also { document ->
+                if (migrate) migrate(document, fileName)
+                document.mergeFrom(loadBundled(fileName))
+            }
+        }
         val parsed = parse(
             checkNotNull(documents["config.yml"]),
             checkNotNull(documents["storage.yml"]),
@@ -72,6 +78,7 @@ public class ConfigRepository(private val dataDirectory: Path) {
             checkNotNull(documents["alerts.yml"]),
         )
         validate(parsed)
+        ConfiguredCommandLoader.load(dataDirectory.resolve("commands.yml"))
         return parsed
     }
 
@@ -141,6 +148,24 @@ public class ConfigRepository(private val dataDirectory: Path) {
                 virtualHosts = config.node("motd", "virtual-hosts").childrenMap().mapValues { (_, node) ->
                     node.node("entries").getList(String::class.java, emptyList())
                 }.mapKeys { it.key.toString().lowercase() },
+            ),
+            playerFormatting = PlayerFormattingConfig(
+                enabled = config.node("chat", "player-formatting", "enabled").getBoolean(true),
+                defaults = PlayerFormattingDefaults(
+                    colors = config.node("chat", "player-formatting", "default", "colors").getBoolean(false),
+                    decorations = config.node("chat", "player-formatting", "default", "decorations").getBoolean(false),
+                    gradients = config.node("chat", "player-formatting", "default", "gradients").getBoolean(false),
+                ),
+                permissions = PlayerFormattingPermissions(
+                    colors = config.node("chat", "player-formatting", "permissions", "colors")
+                        .getString("veloutils.chat.format.colors"),
+                    decorations = config.node("chat", "player-formatting", "permissions", "decorations")
+                        .getString("veloutils.chat.format.decorations"),
+                    gradients = config.node("chat", "player-formatting", "permissions", "gradients")
+                        .getString("veloutils.chat.format.gradients"),
+                    full = config.node("chat", "player-formatting", "permissions", "full")
+                        .getString("veloutils.chat.format.full"),
+                ),
             ),
             discord = DiscordConfig(
                 connectTimeout = DurationParser.parse(integrations.node("discord", "connect-timeout").getString("5s")),
@@ -213,6 +238,19 @@ public class ConfigRepository(private val dataDirectory: Path) {
             }
             if (config.modules.motd && config.motd.entries.isEmpty()) add("motd.entries must not be empty")
             if (config.motd.maximumPlayers !in 1..1_000_000) add("motd.maximum-players must be between 1 and 1000000")
+            validateMiniMessageList("config.yml: motd.entries", config.motd.entries, this)
+            validateMiniMessageList("config.yml: motd.maintenance-entries", config.motd.maintenanceEntries, this)
+            validateMiniMessageList("config.yml: motd.sample-players", config.motd.samplePlayers, this)
+            config.motd.virtualHosts.forEach { (host, entries) ->
+                validateMiniMessageList("config.yml: motd.virtual-hosts.$host.entries", entries, this)
+            }
+            validateMiniMessageList("alerts.yml: messages", config.alerts.messages, this)
+            val permissionPattern = Regex("[a-z0-9][a-z0-9._-]{0,127}")
+            with(config.playerFormatting.permissions) {
+                mapOf("colors" to colors, "decorations" to decorations, "gradients" to gradients, "full" to full)
+                    .filterValues { !permissionPattern.matches(it) }
+                    .forEach { (name, _) -> add("config.yml: chat.player-formatting.permissions.$name is invalid") }
+            }
             if (config.ui.pageSize !in 3..20) add("config.yml: ui.page-size must be between 3 and 20")
             if (config.moderation.selfPunishmentConfirmation !in java.time.Duration.ofSeconds(10)..java.time.Duration.ofMinutes(2)) {
                 add("moderation.yml: self-punishment-confirmation must be between 10s and 2m")
@@ -249,6 +287,37 @@ public class ConfigRepository(private val dataDirectory: Path) {
 
     private fun loader(fileName: String): YamlConfigurationLoader =
         YamlConfigurationLoader.builder().path(dataDirectory.resolve(fileName)).build()
+
+    private fun loadBundled(fileName: String): ConfigurationNode =
+        checkNotNull(javaClass.classLoader.getResourceAsStream(fileName)) { "Missing resource $fileName" }.use { input ->
+            YamlConfigurationLoader.builder().source { input.bufferedReader() }.build().load()
+        }.also { defaults ->
+            // Keyed administrator collections are definitions, not scalar defaults. Injecting bundled examples here
+            // could unexpectedly create access rules, hosts, webhooks, or commands on an upgraded installation.
+            when (fileName) {
+                "config.yml" -> {
+                    defaults.node("server-access", "servers").raw(null)
+                    defaults.node("motd", "virtual-hosts").raw(null)
+                }
+                "integrations.yml" -> defaults.node("discord", "webhooks").raw(null)
+                "commands.yml" -> {
+                    defaults.node("move-commands").raw(null)
+                    defaults.node("message-commands").raw(null)
+                }
+            }
+        }
+
+    private fun validateMiniMessageList(
+        path: String,
+        values: List<String>,
+        problems: MutableList<String>,
+    ) {
+        values.forEachIndexed { index, value ->
+            runCatching { ConfiguredMiniMessage.deserialize(value) }.exceptionOrNull()?.let { failure ->
+                problems += "$path[$index]: invalid MiniMessage: ${failure.message}"
+            }
+        }
+    }
 }
 
 private val ConfigurationNode.string: String?

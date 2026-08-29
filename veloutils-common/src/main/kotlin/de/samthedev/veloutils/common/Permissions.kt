@@ -42,6 +42,13 @@ public object Permissions {
     public val CHAT_MUTE_BYPASS: PermissionDefinition = permission("veloutils.chat.mute.bypass", "Speak while local chat is muted")
     public val CHAT_COOLDOWN_BYPASS: PermissionDefinition = permission("veloutils.chat.cooldown.bypass", "Bypass local chat cooldown and duplicate checks")
     public val CHAT_GLOBAL_USE: PermissionDefinition = permission("veloutils.chat.global.use", "Use network-wide global chat")
+    public val CHAT_FORMAT_COLORS: PermissionDefinition = permission("veloutils.chat.format.colors", "Use colors in player-entered chat")
+    public val CHAT_FORMAT_DECORATIONS: PermissionDefinition = permission(
+        "veloutils.chat.format.decorations",
+        "Use text decorations in player-entered chat",
+    )
+    public val CHAT_FORMAT_GRADIENTS: PermissionDefinition = permission("veloutils.chat.format.gradients", "Use gradients in player-entered chat")
+    public val CHAT_FORMAT_FULL: PermissionDefinition = permission("veloutils.chat.format.full", "Use every safe player-entered chat format")
     public val MESSAGING_USE: PermissionDefinition = permission("veloutils.messaging.use", "Use private messaging")
     public val MESSAGING_SOCIAL_SPY: PermissionDefinition = permission("veloutils.messaging.socialspy", "Observe private-message deliveries")
 
@@ -79,7 +86,9 @@ public object Permissions {
         MAINTENANCE_MANAGE, MAINTENANCE_BYPASS, MAINTENANCE_NOTIFY,
         STAFF_MEMBER, STAFF_LIST_VIEW, STAFF_TIME_SELF, STAFF_TIME_OTHERS, STAFF_ACTIVITY_NOTIFY, STAFF_TIME_EXCLUDE,
         CHAT_STAFF_USE, CHAT_STAFF_RECEIVE, CHAT_ADMIN_USE, CHAT_ADMIN_RECEIVE,
-        CHAT_MANAGE, CHAT_MUTE_BYPASS, CHAT_COOLDOWN_BYPASS, CHAT_GLOBAL_USE, MESSAGING_USE, MESSAGING_SOCIAL_SPY,
+        CHAT_MANAGE, CHAT_MUTE_BYPASS, CHAT_COOLDOWN_BYPASS, CHAT_GLOBAL_USE,
+        CHAT_FORMAT_COLORS, CHAT_FORMAT_DECORATIONS, CHAT_FORMAT_GRADIENTS, CHAT_FORMAT_FULL,
+        MESSAGING_USE, MESSAGING_SOCIAL_SPY,
         REPORTS_CREATE, HELPOP_CREATE, REPORTS_VIEW, REPORTS_CLAIM, REPORTS_CLOSE, REPORTS_NOTIFY,
         MODERATION_BAN, MODERATION_TEMPBAN, MODERATION_IPBAN, MODERATION_TEMPIPBAN, MODERATION_UNBAN,
         MODERATION_KICK, MODERATION_WARN, MODERATION_MUTE, MODERATION_TEMPMUTE, MODERATION_UNMUTE,

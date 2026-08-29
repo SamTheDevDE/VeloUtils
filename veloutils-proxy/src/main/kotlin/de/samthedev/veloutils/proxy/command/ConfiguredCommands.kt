@@ -9,10 +9,10 @@ import de.samthedev.veloutils.common.DurationParser
 import de.samthedev.veloutils.proxy.network.VelocityNetworkService
 import de.samthedev.veloutils.proxy.ui.ChatUi
 import de.samthedev.veloutils.proxy.util.ConfiguredMessages
+import de.samthedev.veloutils.proxy.util.ConfiguredMiniMessage
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.minimessage.MiniMessage
 import org.spongepowered.configurate.yaml.YamlConfigurationLoader
 import java.nio.file.Path
 import java.time.Duration
@@ -42,7 +42,6 @@ public data class ConfiguredCommandDefinitions(
 public object ConfiguredCommandLoader {
     public fun load(path: Path): ConfiguredCommandDefinitions {
         val root = YamlConfigurationLoader.builder().path(path).build().load()
-        val miniMessage = MiniMessage.miniMessage()
         val move = root.node("move-commands").childrenMap().map { (key, node) ->
             val name = validateCommandName(key.toString())
             val servers = node.node("servers").getList(String::class.java, emptyList()).map(String::lowercase).distinct()
@@ -67,7 +66,14 @@ public object ConfiguredCommandLoader {
                 requireNotNull(node.node("permission").getString()?.takeIf(String::isNotBlank)) {
                     "commands.yml: message command $name requires a permission"
                 },
-                lines.map(miniMessage::deserialize),
+                lines.mapIndexed { index, line ->
+                    runCatching { ConfiguredMiniMessage.deserialize(line) }.getOrElse {
+                        throw IllegalArgumentException(
+                            "commands.yml: message-commands.$name.messages[$index]: invalid MiniMessage: ${it.message}",
+                            it,
+                        )
+                    }
+                },
                 DurationParser.parse(node.node("cooldown").getString("5s")),
             )
         }

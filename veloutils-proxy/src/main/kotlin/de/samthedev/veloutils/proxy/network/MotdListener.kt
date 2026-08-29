@@ -8,8 +8,8 @@ import com.velocitypowered.api.proxy.server.ServerPing
 import com.velocitypowered.api.util.Favicon
 import de.samthedev.veloutils.api.MaintenanceSnapshot
 import de.samthedev.veloutils.proxy.config.MotdConfig
+import de.samthedev.veloutils.proxy.util.DynamicMiniMessageTemplate
 import net.kyori.adventure.text.Component
-import net.kyori.adventure.text.minimessage.MiniMessage
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.UUID
@@ -20,13 +20,21 @@ public class MotdListener(
     config: MotdConfig,
     dataDirectory: Path,
     private val maintenance: () -> MaintenanceSnapshot?,
+    private val placeholderValues: () -> Map<String, String> = { emptyMap() },
 ) {
-    private val miniMessage = MiniMessage.miniMessage()
-    private val entries = config.entries.map(miniMessage::deserialize)
-    private val maintenanceEntries = config.maintenanceEntries.map(miniMessage::deserialize)
-    private val virtualHosts = config.virtualHosts.mapValues { (_, values) -> values.map(miniMessage::deserialize) }
+    private val entries = config.entries.mapIndexed { index, source ->
+        DynamicMiniMessageTemplate(source, "config.yml: motd.entries[$index]")
+    }
+    private val maintenanceEntries = config.maintenanceEntries.mapIndexed { index, source ->
+        DynamicMiniMessageTemplate(source, "config.yml: motd.maintenance-entries[$index]")
+    }
+    private val virtualHosts = config.virtualHosts.mapValues { (host, values) ->
+        values.mapIndexed { index, source ->
+            DynamicMiniMessageTemplate(source, "config.yml: motd.virtual-hosts.$host.entries[$index]")
+        }
+    }
     private val maximumPlayers = config.maximumPlayers
-    private val samples = config.samplePlayers.take(12)
+    private val samples = SamplePlayerRenderer(config.samplePlayers)
     private val favicon = config.favicon?.let(dataDirectory::resolve)?.takeIf(Files::isRegularFile)?.let(Favicon::create)
 
     @Subscribe
@@ -34,19 +42,21 @@ public class MotdListener(
         val maintenanceReason = maintenance()?.global?.reason
         val host = event.connection.rawVirtualHost.orElse("").substringBefore(':').lowercase().removeSuffix(".")
         val candidates = if (maintenanceReason != null) maintenanceEntries else virtualHosts[host].orEmpty().ifEmpty { entries }
-        val selected = candidates[ThreadLocalRandom.current().nextInt(candidates.size)]
-            .replaceLiteral("{players}", proxy.playerCount.toString())
-            .replaceLiteral("{reason}", maintenanceReason.orEmpty())
+        val values = placeholderValues() + mapOf(
+            "players" to proxy.playerCount.toString(),
+            "max_players" to maximumPlayers.toString(),
+            "reason" to maintenanceReason.orEmpty(),
+        )
+        val selected = candidates[ThreadLocalRandom.current().nextInt(candidates.size)].render(values)
+        val renderedSamples = samples.render(values)
         val builder = event.ping.asBuilder()
             .description(selected)
             .onlinePlayers(proxy.playerCount)
             .maximumPlayers(maximumPlayers)
-            .samplePlayers(samples.map { ServerPing.SamplePlayer(it, UUID.nameUUIDFromBytes(it.toByteArray())) })
+            .samplePlayers(renderedSamples.mapIndexed { index, value ->
+                ServerPing.SamplePlayer(value, UUID.nameUUIDFromBytes("veloutils-sample-$index".toByteArray()))
+            })
         favicon?.let(builder::favicon)
         event.ping = builder.build()
-    }
-
-    private fun Component.replaceLiteral(literal: String, replacement: String): Component = replaceText { builder ->
-        builder.matchLiteral(literal).replacement(Component.text(replacement))
     }
 }

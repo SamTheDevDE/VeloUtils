@@ -43,6 +43,8 @@ dependencies {
     implementation("com.mysql:mysql-connector-j:9.4.0")
     implementation("org.postgresql:postgresql:42.7.7")
     testImplementation("net.kyori:adventure-text-minimessage:4.24.0")
+    testImplementation("net.kyori:adventure-text-serializer-legacy:4.24.0")
+    testImplementation("net.kyori:adventure-text-serializer-plain:4.24.0")
 }
 
 tasks.jar { enabled = false }

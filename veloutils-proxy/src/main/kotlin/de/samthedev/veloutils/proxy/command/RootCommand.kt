@@ -124,7 +124,7 @@ public class RootCommand(
                     source.sendMessage(ChatUi.header("Configuration defaults"))
                     if (missing.isEmpty()) source.sendMessage(ChatUi.success("No bundled settings are missing."))
                     missing.forEach { (file, paths) ->
-                        source.sendMessage(ChatUi.warning("$file is missing ${paths.size} optional setting(s): ${paths.joinToString()}. Built-in defaults are being used."))
+                        source.sendMessage(ChatUi.warning("$file is missing ${paths.size} optional setting(s): ${paths.joinToString()}. Fixed settings use bundled defaults where applicable."))
                     }
                     source.sendMessage(ChatUi.info("VeloUtils does not rewrite existing YAML during normal startup."))
                 }.onFailure { source.sendMessage(ChatUi.error("Configuration comparison failed: ${it.message}.")) }

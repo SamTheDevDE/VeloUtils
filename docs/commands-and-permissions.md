@@ -193,6 +193,10 @@ Velocity permissions are denied until your permission plugin grants them. Paper/
 | `veloutils.chat.cooldown.bypass` | Bypass local cooldown/duplicate checks | None |
 | `veloutils.chat.local` | Use the bundled radius channel | None |
 | `veloutils.chat.global.use` | Use network-global chat | None |
+| `veloutils.chat.format.colors` | Use named and hex colors in player-entered global/staff chat | None |
+| `veloutils.chat.format.decorations` | Use safe text decorations in player-entered global/staff chat | None |
+| `veloutils.chat.format.gradients` | Use gradients in player-entered global/staff chat | None |
+| `veloutils.chat.format.full` | Use all safe player-entered presentation formats | None |
 | `veloutils.messaging.use` | Use local/network private messaging | None |
 | `veloutils.messaging.socialspy` | Observe local private-message deliveries | None |
 | `veloutils.server-access.bypass` | Bypass all server rules | None |
